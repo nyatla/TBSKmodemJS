@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang=en-us>
+<head>
+  <meta charset=utf-8>
+  <meta content="text/html; charset=utf-8" http-equiv=Content-Type>
+  <title>TBSKmodemJS - modulation/demodukation.</title>
+</head>
+<body>
+    <h1>Modulation/Demodulation test.</h1>
+    See console log.
+    <script>
+        window.addEventListener('load', function () {            
+            Module.onRuntimeInitialized = function () {
+                //initialize
+                Module._TBSKmodemJS();
+                let tj = TBSKmodemJS;
+                var tone = new tj.XPskSinTone(10,10);
+                var preamble = new tj.CoffPreamble(tone);
+                let mod = new tj.TbskModulator(tone, preamble);
+                let farray = mod.modulate([1,2,3]);
+                mod.dispose();
+                console.log(farray.length);
+
+                let demod=new tj.TbskDemodulator(tone,preamble);
+                let demod_src=demod.demodulate(farray);
+                console.log(demod_src);
+
+
+                tone.dispose();
+                preamble.dispose();
+                demod.dispose();
+            }
+		});  
+  </script>
+  <script async src="../src/wasm/tbskmodem_wasm.js"></script>
+</body>
+</html>

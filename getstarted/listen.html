@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang=en-us>
+<head>
+  <meta charset=utf-8>
+  <meta content="text/html; charset=utf-8" http-equiv=Content-Type>
+  <title>TBSKmodemJS - listen.</title>
+</head>
+<body>
+    <h1>listen test.</h1>
+    See console log.
+    <script>
+        var actx = new (window.AudioContext || window.webkitAudioContext)();
+
+        let listener=null;
+
+        window.addEventListener('load', function () {            
+            Module.onRuntimeInitialized = function () {
+                //initialize
+                Module._TBSKmodemJS();
+                let tj = TBSKmodemJS;
+                var tone = new tj.XPskSinTone(10,10);
+                var preamble = new tj.CoffPreamble(tone);
+                listener = new tj.TbskListener(tone, preamble,
+                {
+                  onStart:()=>{console.log("START");return "utf8";},
+                  onData:(d)=>{console.log("DATA:"+d);},
+                  onEnd:()=>{console.log("END");},
+                },
+                "utf8"
+
+                );
+                tone.dispose();
+                preamble.dispose();
+
+            }
+        });
+        function onButton(){
+          let audioin=new AudioIn(16000);
+                audioin.open().then(()=>{
+                  audioin.start((d)=>{
+                  listener.push(d);}
+                )
+                });          
+        }
+  </script>
+  <script async src="../src/wasm/tbskmodem_wasm.js"></script>
+  <script async src="../src/audioin.js"></script>
+  <button name="start" onclick="onButton()">Start</button>
+</body>
+</html>

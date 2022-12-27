@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang=en-us>
+<head>
+  <meta charset=utf-8>
+  <meta content="text/html; charset=utf-8" http-equiv=Content-Type>
+  <title>TBSKmodemJS - play sound.</title>
+</head>
+<body>
+    <h1>playsound test.</h1>
+    See console log.
+    <script>
+        var actx = new (window.AudioContext || window.webkitAudioContext)();
+
+        let audio_buf=null;
+
+        window.addEventListener('load', function () {            
+            Module.onRuntimeInitialized = function () {
+                //initialize
+                Module._TBSKmodemJS();
+                let tj = TBSKmodemJS;
+                var tone = new tj.XPskSinTone(10,10);
+                var preamble = new tj.CoffPreamble(tone);
+                let mod = new tj.TbskModulator(tone, preamble);
+                audio_buf = mod.modulate2AudioBuffer(actx,[1,2,3],16000,16);
+                mod.dispose();
+                tone.dispose();
+                preamble.dispose();
+            }
+        });
+        function onButton(){
+          console.log("play");
+          let node=actx.createBufferSource();
+          node.buffer = audio_buf;
+          node.connect(actx.destination);
+          node.start();
+        }
+
+
+        
+  </script>
+  <script async src="../src/wasm/tbskmodem_wasm.js"></script>
+  <button onclick="onButton()">Play</button>
+</body>
+</html>
