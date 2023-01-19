@@ -1,4 +1,63 @@
-class AudioIn {
+/**
+ * AudioWorkletNodeを使ったAudioキャプチャ
+ */
+
+
+//dumpprocessssor.jsの中身
+const ww_script=new Blob([
+`
+class DumpProcessor extends AudioWorkletProcessor
+{
+    constructor(){
+        super();
+        console.log("DumpProcessor ready!");
+        this._q=[];
+        this.port.onmessage = (e) => {
+            switch(e.data){
+            case "start":
+                this._q=[];
+                break;
+            case "stop":
+                this._q=undefined;
+                break;
+            case "clear":
+                this._q=this._q?[]:this._q;
+                break;
+            default:
+                console.log("Invalid message:"+e.data); 
+            }
+            console.log(e.data);
+          };
+    }
+    process(inputs, outputs, parameters){
+        let _t=this;
+        if(!_t){
+            return true;
+        }
+        for(let i=0;i<inputs.length;i++){
+            _t._q.push(inputs[i][0]);//ch1のみ
+        }
+        if(_t._q.length>1000){
+            console.log("Buffer overflow.");
+        }
+        function f(){
+            let proc=new Promise((resolve) => {
+                _t.port.postMessage({name:"data",value:_t._q.shift()});
+                resolve();
+            });            
+            proc.then(()=>{if(_t._q.length>0){f();}});
+        }
+        f();
+        return true;
+    }
+  }
+  
+  registerProcessor("dump-processor", DumpProcessor);
+
+`], {type: 'text/javascript'});
+
+export class AudioCapture2
+{
     constructor(sample_rate) {
         var _t = this;
         //see https://github.com/mdn/dom-examples/blob/main/media/web-dictaphone/scripts/app.js
@@ -38,6 +97,7 @@ class AudioIn {
             audio: {
                 autoGainControl: { ideal: false },
                 echoCancellation: { ideal: false },
+                noiseSuppression:{ideal:false},
                 sampleRate: { ideal: _t._sample_rate },
                 sampleSize: { ideal: 16 },
                 channelCount: { ideal: 1 }
@@ -49,30 +109,30 @@ class AudioIn {
                 function (stream) {   //onSuccess
                     _t._media_stream = stream;
                     let media_src_node = actx.createMediaStreamSource(stream);
-                    let handler_node = actx.createScriptProcessor(4096, 1, 1);
-                    media_src_node.connect(handler_node);
-                    handler_node.connect(actx.destination);
-                    handler_node.addEventListener("audioprocess",
-                        (event) => {
-                            console.log("in");
-                            if (!_t._onsound) {
-                                return;
+                    actx.audioWorklet.addModule(URL.createObjectURL(ww_script)).then(() => {
+//                    actx.audioWorklet.addModule('dumpprocessor.js').then(() => {
+                        let handler_node = new AudioWorkletNode(actx, 'dump-processor');
+                        handler_node.port.onmessage = (event) => {
+                            if(event.data.name){
+                                if (_t._onsound) {
+                                    _t._onsound(event.data.value);
+                                }
                             }
-                            new Promise((resolve)=>{
-                                resolve(event);
+                        };
+                        media_src_node.connect(handler_node);
+                        handler_node.connect(actx.destination);
 
-                            }).then((e)=>{_t._onsound(e.inputBuffer.getChannelData(0))});
-                        }
-                    );
-
-                    _t._nodes = { media_src: media_src_node, handler: handler_node };
-                    console.log("connected");
-                    resolve();
+                        _t._nodes = { media_src: media_src_node, handler: handler_node };
+                        console.log("connected");
+                        resolve();
+    
+                    });
                 },
                 function (err) {   //onError
                     console.log('The following error occured: ' + err);
                     reject();
-                });
+                }
+            );
         })
     }
     close() {

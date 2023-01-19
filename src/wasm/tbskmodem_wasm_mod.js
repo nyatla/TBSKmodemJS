@@ -1,4 +1,19 @@
+
+var Module = (() => {
+  var _scriptDir = typeof document !== 'undefined' && document.currentScript ? document.currentScript.src : undefined;
+  
+  return (
+function(Module) {
+  Module = Module || {};
+
 var Module = typeof Module != "undefined" ? Module : {};
+
+var readyPromiseResolve, readyPromiseReject;
+
+Module["ready"] = new Promise(function(resolve, reject) {
+ readyPromiseResolve = resolve;
+ readyPromiseReject = reject;
+});
 
 var moduleOverrides = Object.assign({}, Module);
 
@@ -10,11 +25,9 @@ var quit_ = (status, toThrow) => {
  throw toThrow;
 };
 
-var ENVIRONMENT_IS_WEB = typeof window == "object";
+var ENVIRONMENT_IS_WEB = true;
 
-var ENVIRONMENT_IS_WORKER = typeof importScripts == "function";
-
-var ENVIRONMENT_IS_NODE = typeof process == "object" && typeof process.versions == "object" && typeof process.versions.node == "string";
+var ENVIRONMENT_IS_WORKER = false;
 
 var scriptDirectory = "";
 
@@ -27,68 +40,14 @@ function locateFile(path) {
 
 var read_, readAsync, readBinary, setWindowTitle;
 
-function logExceptionOnExit(e) {
- if (e instanceof ExitStatus) return;
- let toLog = e;
- err("exiting due to exception: " + toLog);
-}
-
-if (ENVIRONMENT_IS_NODE) {
- var fs = require("fs");
- var nodePath = require("path");
- if (ENVIRONMENT_IS_WORKER) {
-  scriptDirectory = nodePath.dirname(scriptDirectory) + "/";
- } else {
-  scriptDirectory = __dirname + "/";
- }
- read_ = (filename, binary) => {
-  filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
-  return fs.readFileSync(filename, binary ? undefined : "utf8");
- };
- readBinary = filename => {
-  var ret = read_(filename, true);
-  if (!ret.buffer) {
-   ret = new Uint8Array(ret);
-  }
-  return ret;
- };
- readAsync = (filename, onload, onerror) => {
-  filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
-  fs.readFile(filename, function(err, data) {
-   if (err) onerror(err); else onload(data.buffer);
-  });
- };
- if (process["argv"].length > 1) {
-  thisProgram = process["argv"][1].replace(/\\/g, "/");
- }
- arguments_ = process["argv"].slice(2);
- if (typeof module != "undefined") {
-  module["exports"] = Module;
- }
- process["on"]("uncaughtException", function(ex) {
-  if (!(ex instanceof ExitStatus)) {
-   throw ex;
-  }
- });
- process["on"]("unhandledRejection", function(reason) {
-  throw reason;
- });
- quit_ = (status, toThrow) => {
-  if (keepRuntimeAlive()) {
-   process["exitCode"] = status;
-   throw toThrow;
-  }
-  logExceptionOnExit(toThrow);
-  process["exit"](status);
- };
- Module["inspect"] = function() {
-  return "[Emscripten Module object]";
- };
-} else if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
+if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
  if (ENVIRONMENT_IS_WORKER) {
   scriptDirectory = self.location.href;
  } else if (typeof document != "undefined" && document.currentScript) {
   scriptDirectory = document.currentScript.src;
+ }
+ if (_scriptDir) {
+  scriptDirectory = _scriptDir;
  }
  if (scriptDirectory.indexOf("blob:") !== 0) {
   scriptDirectory = scriptDirectory.substr(0, scriptDirectory.replace(/[?#].*/, "").lastIndexOf("/") + 1);
@@ -268,10 +227,6 @@ var __ATPOSTRUN__ = [];
 
 var runtimeInitialized = false;
 
-function keepRuntimeAlive() {
- return noExitRuntime;
-}
-
 function preRun() {
  if (Module["preRun"]) {
   if (typeof Module["preRun"] == "function") Module["preRun"] = [ Module["preRun"] ];
@@ -358,13 +313,9 @@ function isDataURI(filename) {
  return filename.startsWith(dataURIPrefix);
 }
 
-function isFileURI(filename) {
- return filename.startsWith("file://");
-}
-
 var wasmBinaryFile;
 
-wasmBinaryFile = "tbskmodem_wasm.wasm";
+wasmBinaryFile = "tbskmodem_wasm_mod.wasm";
 
 if (!isDataURI(wasmBinaryFile)) {
  wasmBinaryFile = locateFile(wasmBinaryFile);
@@ -386,7 +337,7 @@ function getBinary(file) {
 
 function getBinaryPromise() {
  if (!wasmBinary && (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER)) {
-  if (typeof fetch == "function" && !isFileURI(wasmBinaryFile)) {
+  if (typeof fetch == "function") {
    return fetch(wasmBinaryFile, {
     credentials: "same-origin"
    }).then(function(response) {
@@ -397,14 +348,6 @@ function getBinaryPromise() {
    }).catch(function() {
     return getBinary(wasmBinaryFile);
    });
-  } else {
-   if (readAsync) {
-    return new Promise(function(resolve, reject) {
-     readAsync(wasmBinaryFile, function(response) {
-      resolve(new Uint8Array(response));
-     }, reject);
-    });
-   }
   }
  }
  return Promise.resolve().then(function() {
@@ -441,7 +384,7 @@ function createWasm() {
   });
  }
  function instantiateAsync() {
-  if (!wasmBinary && typeof WebAssembly.instantiateStreaming == "function" && !isDataURI(wasmBinaryFile) && !isFileURI(wasmBinaryFile) && !ENVIRONMENT_IS_NODE && typeof fetch == "function") {
+  if (!wasmBinary && typeof WebAssembly.instantiateStreaming == "function" && !isDataURI(wasmBinaryFile) && typeof fetch == "function") {
    return fetch(wasmBinaryFile, {
     credentials: "same-origin"
    }).then(function(response) {
@@ -462,10 +405,10 @@ function createWasm() {
    return exports;
   } catch (e) {
    err("Module.instantiateWasm callback failed with error: " + e);
-   return false;
+   readyPromiseReject(e);
   }
  }
- instantiateAsync();
+ instantiateAsync().catch(readyPromiseReject);
  return {};
 }
 
@@ -473,24 +416,19 @@ var tempDouble;
 
 var tempI64;
 
-function ExitStatus(status) {
- this.name = "ExitStatus";
- this.message = "Program terminated with exit(" + status + ")";
- this.status = status;
-}
-
 function callRuntimeCallbacks(callbacks) {
  while (callbacks.length > 0) {
   callbacks.shift()(Module);
  }
 }
 
-function _TBSKmodemJS_init() {
- if (typeof TBSKmodemJS !== "undefined") {
+function _TBSKmodem_api_load_() {
+ let MOD = Module;
+ if ("tbskmodem" in MOD) {
+  console.log("tbskmodem api is already initialized.");
   return;
  }
- let MOD = Module;
- console.log("Start TBSKmodemJS initialize.");
+ console.log("Start tbskmodem initialize.");
  function set_default(a, v) {
   return a === undefined || a === null ? v : a;
  }
@@ -623,7 +561,6 @@ function _TBSKmodemJS_init() {
   constructor(tone, threshold, cycle) {
    let _threshold = set_default(threshold, 1);
    let _cycle = set_default(cycle, 4);
-   console.log(_threshold, _cycle);
    super(MOD._wasm_tbskmodem_CoffPreamble(tone._wasm_instance, _threshold, _cycle));
   }
  }
@@ -702,7 +639,6 @@ function _TBSKmodemJS_init() {
   }
   modulate2AudioBuffer(actx, src, sampleRate) {
    let f32_array = this.modulate(src);
-   console.log(f32_array);
    let buf = actx.createBuffer(1, f32_array.length, sampleRate);
    buf.getChannelData(0).set(f32_array);
    return buf;
@@ -933,7 +869,7 @@ function _TBSKmodemJS_init() {
    return new Uint8Array(iter.toArray());
   }
  }
- TBSKmodemJS = {
+ MOD.tbskmodem = {
   getPointerHolderSize: function() {
    return MOD._wasm_tbskmodem_PointerHolder_Size();
   },
@@ -953,7 +889,8 @@ function _TBSKmodemJS_init() {
   TbskListener: TbskListener,
   PcmData: PcmData
  };
- console.log("TBSKmodemJS is ready!2");
+ console.log("tbskmodem initialized.", this._instance);
+ return this._instance;
 }
 
 function ___assert_fail(condition, filename, line, func) {
@@ -979,7 +916,7 @@ function _emscripten_resize_heap(requestedSize) {
 }
 
 var asmLibraryArg = {
- "TBSKmodemJS_init": _TBSKmodemJS_init,
+ "TBSKmodem_api_load_": _TBSKmodem_api_load_,
  "__assert_fail": ___assert_fail,
  "abort": _abort,
  "emscripten_memcpy_big": _emscripten_memcpy_big,
@@ -990,6 +927,10 @@ var asm = createWasm();
 
 var ___wasm_call_ctors = Module["___wasm_call_ctors"] = function() {
  return (___wasm_call_ctors = Module["___wasm_call_ctors"] = Module["asm"]["__wasm_call_ctors"]).apply(null, arguments);
+};
+
+var _wasm_tbskmodem_VERSION = Module["_wasm_tbskmodem_VERSION"] = function() {
+ return (_wasm_tbskmodem_VERSION = Module["_wasm_tbskmodem_VERSION"] = Module["asm"]["wasm_tbskmodem_VERSION"]).apply(null, arguments);
 };
 
 var _wasm_tbskmodem_malloc = Module["_wasm_tbskmodem_malloc"] = function() {
@@ -1132,8 +1073,8 @@ var _wasm_tbskmodem_PcmData_Dump = Module["_wasm_tbskmodem_PcmData_Dump"] = func
  return (_wasm_tbskmodem_PcmData_Dump = Module["_wasm_tbskmodem_PcmData_Dump"] = Module["asm"]["wasm_tbskmodem_PcmData_Dump"]).apply(null, arguments);
 };
 
-var _TBSKmodemJS = Module["_TBSKmodemJS"] = function() {
- return (_TBSKmodemJS = Module["_TBSKmodemJS"] = Module["asm"]["TBSKmodemJS"]).apply(null, arguments);
+var _load_apis = Module["_load_apis"] = function() {
+ return (_load_apis = Module["_load_apis"] = Module["asm"]["load_apis"]).apply(null, arguments);
 };
 
 var ___errno_location = Module["___errno_location"] = function() {
@@ -1186,6 +1127,7 @@ function run(args) {
   Module["calledRun"] = true;
   if (ABORT) return;
   initRuntime();
+  readyPromiseResolve(Module);
   if (Module["onRuntimeInitialized"]) Module["onRuntimeInitialized"]();
   postRun();
  }
@@ -1210,3 +1152,15 @@ if (Module["preInit"]) {
 }
 
 run();
+
+
+  return Module.ready
+}
+);
+})();
+if (typeof exports === 'object' && typeof module === 'object')
+  module.exports = Module;
+else if (typeof define === 'function' && define['amd'])
+  define([], function() { return Module; });
+else if (typeof exports === 'object')
+  exports["Module"] = Module;
