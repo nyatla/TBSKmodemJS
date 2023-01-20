@@ -753,7 +753,9 @@ function _TBSKmodem_api_load_() {
   }
   dispose() {
    if (this._currentGenerator) {
-    this._currentGenerator.dispose();
+    try {
+     this._currentGenerator.throw(new Error("Brake workflow!"));
+    } catch (e) {}
    }
    this._demod.dispose();
    this._input_buf.dispose();
@@ -764,91 +766,94 @@ function _TBSKmodem_api_load_() {
     let out_buf = null;
     let dresult = null;
     dresult = demod._demodulateAsInt_B(input_buf);
-    yield function() {
-     out_buf.dispose();
-     dresult.dispose();
-     out_buf = null;
-     dresult = null;
-    };
     if (dresult == null) {
      console.error("input err");
      return;
     }
     try {
-     switch (dresult.getType()) {
-     case 1:
-      out_buf = dresult.getOutput();
-      break;
+     try {
+      switch (dresult.getType()) {
+      case 1:
+       out_buf = dresult.getOutput();
+       break;
 
-     case 2:
-      for (;;) {
-       out_buf = dresult.getRecover();
-       if (out_buf != null) {
-        break;
+      case 2:
+       for (;;) {
+        out_buf = dresult.getRecover();
+        if (out_buf != null) {
+         break;
+        }
+        yield;
        }
-       yield;
-      }
-      break;
+       break;
 
-     default:
-      console.error("unknown type.");
+      default:
+       console.error("unknown type.");
+       return;
+      }
+     } finally {
+      dresult.dispose();
+      dresult = null;
+     }
+     console.log("Signal detected!");
+     callOnStart();
+     let ra = [];
+     for (;;) {
+      try {
+       for (;;) {
+        let w = out_buf.next();
+        ra.push(w);
+       }
+      } catch (e) {
+       if (e instanceof RecoverableStopIteration) {
+        if (ra.length > 0) {
+         console.log("data:");
+         if (decoder) {
+          let rd = decoder.put(ra);
+          if (rd) {
+           callOnData(rd);
+          }
+         } else {
+          callOnData(ra);
+         }
+         ra = [];
+        }
+        yield;
+        continue;
+       } else if (e instanceof StopIteration) {
+        if (ra.length > 0) {
+         console.log("data:");
+         if (decoder) {
+          let rd = decoder.put(ra);
+          if (rd) {
+           callOnData(rd);
+          }
+         } else {
+          callOnData(ra);
+         }
+         ra = [];
+        }
+        console.log("Signal lost!");
+        callOnEnd();
+       }
+      }
+      out_buf.dispose();
+      out_buf = null;
       return;
      }
     } finally {
-     dresult.dispose();
-     dresult = null;
-    }
-    console.log("Signal detected!");
-    callOnStart();
-    let ra = [];
-    for (;;) {
-     try {
-      for (;;) {
-       let w = out_buf.next();
-       ra.push(w);
-      }
-     } catch (e) {
-      if (e instanceof RecoverableStopIteration) {
-       if (ra.length > 0) {
-        console.log("data:");
-        if (decoder) {
-         let rd = decoder.put(ra);
-         if (rd) {
-          callOnData(rd);
-         }
-        } else {
-         callOnData(ra);
-        }
-        ra = [];
-       }
-       yield;
-       continue;
-      } else if (e instanceof StopIteration) {
-       if (ra.length > 0) {
-        console.log("data:");
-        if (decoder) {
-         let rd = decoder.put(ra);
-         if (rd) {
-          callOnData(rd);
-         }
-        } else {
-         callOnData(ra);
-        }
-        ra = [];
-       }
-       console.log("Signal lost!");
-       callOnEnd();
-      }
+     if (out_buf) {
+      out_buf.dispose();
      }
-     out_buf.dispose();
-     out_buf = null;
-     return;
+     if (dresult) {
+      dresult.dispose();
+     }
     }
+    console.log("end of workflow");
    }
    this._input_buf.puts(src);
    if (this._currentGenerator == null) {
     this._currentGenerator = workflow(this._demod, this._input_buf, this._callOnStart, this._callOnData, this._callOnEnd, this._decoder);
-    this._currentGenerator.dispose = this._currentGenerator.next();
    }
    if (this._currentGenerator.next().done) {
     this._currentGenerator = null;
@@ -869,8 +874,12 @@ function _TBSKmodem_api_load_() {
    return new Uint8Array(iter.toArray());
   }
  }
+ const JSBIND_VERSION = "JSBind/0.1.0";
  MOD.tbskmodem = {
-  getPointerHolderSize: function() {
+  VERSION: (() => {
+   return JSBIND_VERSION + ";TBSKmodemCPP/" + MOD._wasm_tbskmodem_VERSION(0) + "." + MOD._wasm_tbskmodem_VERSION(1) + "." + MOD._wasm_tbskmodem_VERSION(2);
+  })(),
+  getPointerHolderSize: () => {
    return MOD._wasm_tbskmodem_PointerHolder_Size();
   },
   Utf8Decoder: Utf8Decoder,

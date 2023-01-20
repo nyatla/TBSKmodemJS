@@ -121,7 +121,6 @@ export class AudioCapture1 {
     }
     stop() {
         if (!this._actx) { throw new Error(); }
-        assert(this._actx);
         this._onsound = null;
         console.log("recorder stopped");
     }

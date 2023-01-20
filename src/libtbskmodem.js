@@ -7,7 +7,7 @@ import { Buffer } from 'buffer';
  * ref::
  * https://zenn.dev/wok/articles/0022_bundle-wasm
  */
-const VERSION="TBSKmodemJS/0.1.0";
+const VERSION="TBSKmodemJS/0.1.3";
 
 export const TBSKmodemJS={
     _instance:null,
@@ -22,7 +22,7 @@ export const TBSKmodemJS={
         let wasm = await mod({ wasmBinary: b });
         wasm._load_apis();
         TBSKmodemJS.wasm=wasm;
-        TBSKmodemJS.version=VERSION+";TBSKmodem/"+wasm._wasm_tbskmodem_VERSION(0)+"."+wasm._wasm_tbskmodem_VERSION(1)+"."+wasm._wasm_tbskmodem_VERSION(2);
+        TBSKmodemJS.version=VERSION+";"+wasm.VERSION;
         TBSKmodemJS.wasm=wasm;
         TBSKmodemJS.audio={
             AudioCapture:AudioCapture2,

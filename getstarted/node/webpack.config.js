@@ -16,6 +16,10 @@ const config = {
 		open: true,
         liveReload: true,
 	},
+    watchOptions: {
+        ignored: /node_modules/,
+        poll: true  // 5秒ごとにチェック
+    },
     mode: "development",
     plugins: [
         new CopyFilePlugin({
@@ -35,17 +39,7 @@ const config = {
                 type: "asset/inline" },
         ],
     },
-};    plugins: [
-        new CopyFilePlugin({
-            patterns: [
-            {
-                context: path.resolve(__dirname, "src"),
-                from: path.resolve(__dirname, "src/*.*"),
-                to: path.resolve(__dirname, "dist"),
-            },
-            ]
-        })
-    ],
+};
 module.exports = () => {
     if (isProduction) {
         config.mode = 'production';
