@@ -7,7 +7,7 @@ import { Buffer } from 'buffer';
  * ref::
  * https://zenn.dev/wok/articles/0022_bundle-wasm
  */
-const VERSION="TBSKmodemJS/0.1.3";
+const VERSION="TBSKmodemJS/0.1.4";
 
 export const TBSKmodemJS={
     _instance:null,
