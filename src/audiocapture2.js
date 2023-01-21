@@ -11,9 +11,8 @@ class DumpProcessor extends AudioWorkletProcessor
     constructor(){
         super();
         console.log("DumpProcessor ready!");
-        this._q=[];
         this.port.onmessage = (e) => {
-            switch(e.data){
+            switch(e.data["name"]){
             case "start":
                 this._q=[];
                 break;
@@ -24,30 +23,38 @@ class DumpProcessor extends AudioWorkletProcessor
                 this._q=this._q?[]:this._q;
                 break;
             default:
-                console.log("Invalid message:"+e.data); 
+                console.log("Invalid message:"+e); 
             }
             console.log(e.data);
           };
     }
     process(inputs, outputs, parameters){
         let _t=this;
-        if(!_t){
+        if(!_t._q){
             return true;
         }
+        /*
+        let b=[];
         for(let i=0;i<inputs.length;i++){
-            _t._q.push(inputs[i][0]);//ch1のみ
+        	let s=inputs[i][0];
+        	for(let j=0;j<s.length;j++){
+        		b.push(s[j]);
+        	}
         }
-        if(_t._q.length>1000){
+        _t.port.postMessage({name:"data",value:b});
+		*/
+
+        if(_t._q.length<100){
+            for(let i=0;i<inputs.length;i++){
+                _t._q.push(inputs[i][0]);//ch1のみ
+            }
+        }else{
             console.log("Buffer overflow.");
         }
-        function f(){
-            let proc=new Promise((resolve) => {
-                _t.port.postMessage({name:"data",value:_t._q.shift()});
-                resolve();
-            });            
-            proc.then(()=>{if(_t._q.length>0){f();}});
+        for(let i=0;i<Math.min(_t._q.length,inputs.length*2);i++){
+            _t.port.postMessage({name:"data",value:_t._q.shift()});
         }
-        f();
+
         return true;
     }
   }
@@ -64,12 +71,12 @@ export class AudioCapture2
         if (!navigator.mediaDevices.getUserMedia) {
             throw new Error('getUserMedia not supported on your browser!');
         }
-        _t._actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: sample_rate });
         _t._sample_rate = sample_rate;
         _t._media_devices = navigator.mediaDevices;
         _t._media_stream = null;
         _t._nodes = null;
         _t._onsound = null;
+        _t._actx = null;
     }
     enumerateDevices() {
         const constraints = {
@@ -91,7 +98,9 @@ export class AudioCapture2
     open() {
         var _t = this;
         let dev = this._media_devices;
-        let actx = this._actx;
+
+        
+        
 
         const constraints = {
             audio: {
@@ -105,18 +114,31 @@ export class AudioCapture2
             video: false
         };
         return new Promise((resolve, reject) => {
+
             dev.getUserMedia(constraints).then(
                 function (stream) {   //onSuccess
                     _t._media_stream = stream;
+                    /*  https://addpipe.com/simple-web-audio-recorder-demo/js/app.js
+                        create an audio context after getUserMedia is called
+                        sampleRate might change after getUserMedia is called, like it does on macOS when recording through AirPods
+                        the sampleRate defaults to the one set in your OS for your playback device
+                    */
+		            let actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: _t._sample_rate });
+                    _t._actx = actx;
+                    console.log("actx sample rate",actx.sampleRate);
+                    console.log("stream capability",stream.getAudioTracks()[0].getCapabilities().sampleRate);
                     let media_src_node = actx.createMediaStreamSource(stream);
                     actx.audioWorklet.addModule(URL.createObjectURL(ww_script)).then(() => {
-//                    actx.audioWorklet.addModule('dumpprocessor.js').then(() => {
                         let handler_node = new AudioWorkletNode(actx, 'dump-processor');
                         handler_node.port.onmessage = (event) => {
-                            if(event.data.name){
+                            switch(event.data["name"]){
+                            case "data":
                                 if (_t._onsound) {
                                     _t._onsound(event.data.value);
                                 }
+                                break;
+                            default:
+	                            console.log("unknown msg");
                             }
                         };
                         media_src_node.connect(handler_node);
@@ -124,7 +146,9 @@ export class AudioCapture2
 
                         _t._nodes = { media_src: media_src_node, handler: handler_node };
                         console.log("connected");
-                        resolve();
+                        actx.suspend().then(()=>{
+                        	actx.resume().then(()=>{resolve();})
+});
     
                     });
                 },
@@ -142,8 +166,14 @@ export class AudioCapture2
             this._nodes.media_src.disconnect();
         }
         this._nodes = null;
-        this._actx.close();
-        this._actx = null;
+        if(this._actx){
+            this._actx.close();
+            this._actx = null;    
+        }
+        const tracks = this._media_stream.getTracks();
+        tracks.forEach(function(track) {
+            track.stop();
+        });        
     }
     capability() {
         //see https://note.com/npaka/n/n87acd80a4266
@@ -156,11 +186,13 @@ export class AudioCapture2
     start(onsound) {
         if (!this._actx || this._onsound) { throw new Error(); }
         this._onsound = onsound;
+        this._nodes.handler.port.postMessage({name:"start"});
         console.log("recorder started");
     }
     stop() {
         if (!this._actx) { throw new Error(); }
         this._onsound = null;
+        this._nodes.handler.port.postMessage({name:"stop"});
         console.log("recorder stopped");
     }
 }
