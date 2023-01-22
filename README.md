@@ -53,7 +53,7 @@ getstarted/*.htmlにスタンドアロン版のサンプルがあります。
 このサンプルは、ライブラリをscriptタグでリンクします。
 
 ```
-$cd getstarted
+$cd TBSKmodemJS
 $python -m http.server 8000
 ```
 
