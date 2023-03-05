@@ -20,7 +20,12 @@
     "type": "git",
     "url": "git+https://github.com/nyatla/TBSKmodemJS.git"
   },
-  "keywords": ["audio","modem","communication","sound"],
+  "keywords": [
+    "audio",
+    "modem",
+    "communication",
+    "sound"
+  ],
   "author": "nyatla",
   "license": "MIT",
   "bugs": {

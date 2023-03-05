@@ -611,10 +611,10 @@ function _TBSKmodem_api_load_() {
   }
  }
  class TbskModulator extends WasmProxy {
-  constructor(tone, preamble) {
-   super(MOD._wasm_tbskmodem_TbskModulator(tone._wasm_instance, preamble._wasm_instance));
+  constructor(tone, preamble_cycle = 4) {
+   super(MOD._wasm_tbskmodem_TbskModulator_A(tone._wasm_instance, preamble_cycle));
   }
-  modulate(src) {
+  modulate(src, stopsymbol = true) {
    var buf = new IntInputIterator();
    try {
     if (typeof src == "string") {
@@ -623,7 +623,7 @@ function _TBSKmodem_api_load_() {
     } else {
      buf.puts(src);
     }
-    let wi = MOD._wasm_tbskmodem_TbskModulator_Modulate_A(this._wasm_instance, buf._wasm_instance);
+    let wi = MOD._wasm_tbskmodem_TbskModulator_Modulate(this._wasm_instance, buf._wasm_instance, stopsymbol);
     if (wi == null) {
      throw new Error();
     }
@@ -645,8 +645,8 @@ function _TBSKmodem_api_load_() {
   }
  }
  class TbskDemodulator extends WasmProxy {
-  constructor(tone, preamble) {
-   super(MOD._wasm_tbskmodem_TbskDemodulator(tone._wasm_instance, preamble._wasm_instance));
+  constructor(tone, preamble_th = 1, preamble_cycle = 4) {
+   super(MOD._wasm_tbskmodem_TbskDemodulator_A(tone._wasm_instance, preamble_th, preamble_cycle));
   }
   _demodulateAsInt(buf) {
    let r = MOD._wasm_tbskmodem_TbskDemodulator_DemodulateAsInt(this._wasm_instance, buf._wasm_instance);
@@ -708,7 +708,7 @@ function _TBSKmodem_api_load_() {
   }
  }
  class TbskListener extends Disposable {
-  constructor(tone, preamble, events = {}, decoder = undefined) {
+  constructor(tone, preamble_th = 1, preamble_cycle = 4, events = {}, decoder = undefined) {
    super();
    if (!("onStart" in events)) {
     events.onStart = null;
@@ -721,7 +721,7 @@ function _TBSKmodem_api_load_() {
    }
    let _t = this;
    this._decoder = decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
-   this._demod = new TbskDemodulator(tone, preamble);
+   this._demod = new TbskDemodulator(tone, preamble_th, preamble_cycle);
    this._input_buf = new DoubleInputIterator(true);
    this._callOnStart = () => {
     new Promise(resolve => {
@@ -874,7 +874,7 @@ function _TBSKmodem_api_load_() {
    return new Uint8Array(iter.toArray());
   }
  }
- const JSBIND_VERSION = "JSBind/0.1.0";
+ const JSBIND_VERSION = "JSBind/0.1.1";
  MOD.tbskmodem = {
   VERSION: (() => {
    return JSBIND_VERSION + ";TBSKmodemCPP/" + MOD._wasm_tbskmodem_VERSION(0) + "." + MOD._wasm_tbskmodem_VERSION(1) + "." + MOD._wasm_tbskmodem_VERSION(2);
@@ -1022,16 +1022,24 @@ var _wasm_tbskmodem_CoffPreamble = Module["_wasm_tbskmodem_CoffPreamble"] = func
  return (_wasm_tbskmodem_CoffPreamble = Module["_wasm_tbskmodem_CoffPreamble"] = Module["asm"]["wasm_tbskmodem_CoffPreamble"]).apply(null, arguments);
 };
 
-var _wasm_tbskmodem_TbskModulator = Module["_wasm_tbskmodem_TbskModulator"] = function() {
- return (_wasm_tbskmodem_TbskModulator = Module["_wasm_tbskmodem_TbskModulator"] = Module["asm"]["wasm_tbskmodem_TbskModulator"]).apply(null, arguments);
+var _wasm_tbskmodem_TbskModulator_A = Module["_wasm_tbskmodem_TbskModulator_A"] = function() {
+ return (_wasm_tbskmodem_TbskModulator_A = Module["_wasm_tbskmodem_TbskModulator_A"] = Module["asm"]["wasm_tbskmodem_TbskModulator_A"]).apply(null, arguments);
 };
 
-var _wasm_tbskmodem_TbskModulator_Modulate_A = Module["_wasm_tbskmodem_TbskModulator_Modulate_A"] = function() {
- return (_wasm_tbskmodem_TbskModulator_Modulate_A = Module["_wasm_tbskmodem_TbskModulator_Modulate_A"] = Module["asm"]["wasm_tbskmodem_TbskModulator_Modulate_A"]).apply(null, arguments);
+var _wasm_tbskmodem_TbskModulator_B = Module["_wasm_tbskmodem_TbskModulator_B"] = function() {
+ return (_wasm_tbskmodem_TbskModulator_B = Module["_wasm_tbskmodem_TbskModulator_B"] = Module["asm"]["wasm_tbskmodem_TbskModulator_B"]).apply(null, arguments);
 };
 
-var _wasm_tbskmodem_TbskDemodulator = Module["_wasm_tbskmodem_TbskDemodulator"] = function() {
- return (_wasm_tbskmodem_TbskDemodulator = Module["_wasm_tbskmodem_TbskDemodulator"] = Module["asm"]["wasm_tbskmodem_TbskDemodulator"]).apply(null, arguments);
+var _wasm_tbskmodem_TbskModulator_Modulate = Module["_wasm_tbskmodem_TbskModulator_Modulate"] = function() {
+ return (_wasm_tbskmodem_TbskModulator_Modulate = Module["_wasm_tbskmodem_TbskModulator_Modulate"] = Module["asm"]["wasm_tbskmodem_TbskModulator_Modulate"]).apply(null, arguments);
+};
+
+var _wasm_tbskmodem_TbskDemodulator_A = Module["_wasm_tbskmodem_TbskDemodulator_A"] = function() {
+ return (_wasm_tbskmodem_TbskDemodulator_A = Module["_wasm_tbskmodem_TbskDemodulator_A"] = Module["asm"]["wasm_tbskmodem_TbskDemodulator_A"]).apply(null, arguments);
+};
+
+var _wasm_tbskmodem_TbskDemodulator_B = Module["_wasm_tbskmodem_TbskDemodulator_B"] = function() {
+ return (_wasm_tbskmodem_TbskDemodulator_B = Module["_wasm_tbskmodem_TbskDemodulator_B"] = Module["asm"]["wasm_tbskmodem_TbskDemodulator_B"]).apply(null, arguments);
 };
 
 var _wasm_tbskmodem_TbskDemodulator_DemodulateAsInt = Module["_wasm_tbskmodem_TbskDemodulator_DemodulateAsInt"] = function() {

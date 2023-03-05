@@ -63,7 +63,7 @@ class DumpProcessor extends AudioWorkletProcessor
 
 `], {type: 'text/javascript'});
 
-export class AudioCapture2
+export class AudioInput
 {
     constructor(sample_rate) {
         var _t = this;
@@ -94,13 +94,13 @@ export class AudioCapture2
                 console.log(err.name + ": " + err.message);
             });
     }
-
+    /**
+     * 音声キャプチャデバイスを開きます。結果はPromiseで返します。
+     * @returns Promise
+     */
     open() {
         var _t = this;
         let dev = this._media_devices;
-
-        
-        
 
         const constraints = {
             audio: {
@@ -148,7 +148,7 @@ export class AudioCapture2
                         console.log("connected");
                         actx.suspend().then(()=>{
                         	actx.resume().then(()=>{resolve();})
-});
+                        });
     
                     });
                 },
@@ -159,6 +159,9 @@ export class AudioCapture2
             );
         })
     }
+    /**
+     * 音声キャプチャデバイスを閉じます。以降は使用不能です。
+     */
     close() {
         this.stop();
         if (this._nodes) {
@@ -175,6 +178,13 @@ export class AudioCapture2
             track.stop();
         });        
     }
+    /**
+     * 関連付けられたオーディオコンテキストを返します。
+     * @returns 
+     */
+    audioContext(){
+        return this._actx;
+    }
     capability() {
         //see https://note.com/npaka/n/n87acd80a4266
         let tracks = this._media_stream.getTracks();
@@ -183,12 +193,20 @@ export class AudioCapture2
             console.log(tracks[i].getSettings());
         }
     }
-    start(onsound) {
+    /**
+     * 音声入力のコールバック処理を開始します。
+     * @param {*} onsound 
+     */
+    start(onsound)
+    {
         if (!this._actx || this._onsound) { throw new Error(); }
         this._onsound = onsound;
         this._nodes.handler.port.postMessage({name:"start"});
         console.log("recorder started");
     }
+    /**
+     * コールバック処理を停止します。
+     */
     stop() {
         if (!this._actx) { throw new Error(); }
         this._onsound = null;
