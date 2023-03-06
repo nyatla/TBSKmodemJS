@@ -49,7 +49,7 @@ export class TbskModulator extends WasmProxy
      * @param {AudioContext} actx
      * @param {array[int]} src
      * @param {int} sampleRate
-     * @return {BufferSource}
+     * @return {AudioBuffer}
      */
     modulate2AudioBuffer(actx, src, sampleRate) {
         let f32_array = this.modulate(src);

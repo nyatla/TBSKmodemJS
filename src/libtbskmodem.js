@@ -1,6 +1,8 @@
 
 import tbskmodemjsWASM from "./wasm/tbskmodem_wasm_mod.wasm"
 // @ts-check
+import {TbskException} from "./utils/classes"
+
 import {AudioInput} from "./audio/AudioInput"
 import {AudioPlayer} from "./audio/AudioPlayer"
 import { Buffer } from 'buffer';
@@ -28,11 +30,33 @@ export class TBSKmodemJS
     /** @type {TBSKmodemJS} */
     static _instance=undefined;
     /**
+     * 必要なAPIが揃っているかを返す。
+     * @returns {boolean}
+     */
+    static checkApis()
+    {
+        let apis={
+            "mediaDevice":navigator.mediaDevices.getUserMedia?true:false,
+            "AudioContext":(window.AudioContext || window.webkitAudioContext)?true:false,
+            "WebAssembly":(typeof WebAssembly === 'object')
+        };
+        let r=true;
+        for(let k in apis){
+            r=r && apis[k];
+        }
+        return {success:r,result:{apis:apis}}
+
+    }
+    /**
      * @async
      * @returns {Promise<TBSKmodemJS>}
      */
     static async load() 
     {
+        let check=TBSKmodemJS.checkApis();
+        if(!check.success){
+            throw new TbskException("Missing required APIs.");
+        }
         if(TBSKmodemJS._instance){
             console.log("TBSKmodemJS is already created.");
             return TBSKmodemJS._instance;
@@ -54,11 +78,14 @@ export class TBSKmodemJS
         this.wasm=wasm;
         /** @type {string}*/
         this.version=VERSION+";"+wasm.VERSION;
-        /** @type {{AudioInput:AudioPlayer,AudioPlayer:AudioPlayer}} */
-        this.audio={
-            AudioInput:AudioInput,
-            AudioPlayer:AudioPlayer,
-         };
+        class AudioSub{
+            constructor(){
+                this.AudioInput=AudioInput;
+                this.AudioPlayer=AudioPlayer;
+            }
+        };
+        /** @class {AudioSub}*/
+        this.audio=new AudioSub();
         /** @class {TraitTone}*/
         this.CustomTone=class extends TraitTone{
             constructor(d){

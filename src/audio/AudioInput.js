@@ -1,7 +1,7 @@
 /**
  * AudioWorkletNodeを使ったAudioキャプチャ
  */
-
+//@ts-check
 
 //dumpprocessssor.jsの中身
 const ww_script=new Blob([
@@ -65,6 +65,10 @@ class DumpProcessor extends AudioWorkletProcessor
 
 export class AudioInput
 {
+    /**
+     * 
+     * @param {number} sample_rate 
+     */
     constructor(sample_rate) {
         var _t = this;
         //see https://github.com/mdn/dom-examples/blob/main/media/web-dictaphone/scripts/app.js
