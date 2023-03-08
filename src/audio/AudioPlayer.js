@@ -25,12 +25,13 @@ export class AudioPlayer
 	 * 再生が完了するとtrue
 	 * @returns {boolean}
 	 */
-	isFinised(){
+	get isFinised(){
 		return !this._playing;
 	}
 	/**
 	 * 再生します。
-	 * @returns 
+	 * @returns {Promise}
+	 * 再生が完了するとresolveします。
 	 */
 	play()
     {
@@ -44,12 +45,17 @@ export class AudioPlayer
 				_t._src=null;
 				resolve();
 			};
-        });
+        });		
 	}
+	/**
+	 * 再生中であれば停止します。
+	 */
 	stop()
     {
-		this._src.stop();
-		this._playing=false;
-		this._src=null;
+		if(this._src){
+			this._src.stop();
+			this._playing=false;
+			this._src=null;
+		}
 	}
 }

@@ -1,6 +1,6 @@
+// @ts-check
 import {StopIteration} from "../tbskclasses/StopIteration"
 import {RecoverableStopIteration} from "../tbskclasses/RecoverableStopIteration"
-// @ts-check
 export class TbskException extends Error {
     constructor(message,tag=undefined){
         super(message);

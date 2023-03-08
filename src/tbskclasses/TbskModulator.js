@@ -1,7 +1,10 @@
+//@ts-check
 
 import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes.js"
 
-
+/**
+ * 
+ */
 export class TbskModulator extends WasmProxy
 {
     /**
@@ -13,9 +16,9 @@ export class TbskModulator extends WasmProxy
         super(mod,mod._wasm_tbskmodem_TbskModulator_A(tone._wasm_instance, preamble_cycle));
     }
     /**
-     * @param {array[uint8]|string} src
+     * @param {array[number]|string} src
      * @param {boolean} stopsymbol
-     * @return {FloatArray}
+     * @return {Array[number]}
      */
     modulate(src,stopsymbol=true)
     {
@@ -47,8 +50,8 @@ export class TbskModulator extends WasmProxy
     /**
      * JS拡張。オーディオコンテキストのバッファを返す。
      * @param {AudioContext} actx
-     * @param {array[int]} src
-     * @param {int} sampleRate
+     * @param {array[number]} src
+     * @param {number} sampleRate
      * @return {AudioBuffer}
      */
     modulate2AudioBuffer(actx, src, sampleRate) {

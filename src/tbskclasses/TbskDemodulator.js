@@ -1,6 +1,8 @@
 import {WasmProxy,IntOutputIterator,DoubleInputIterator} from "../utils/classes.js"
 import {PassDecoder,Utf8Decoder} from "../utils/decoder.js"
 
+//@ts-check
+
 export class TbskDemodulator extends WasmProxy
 {
     /**

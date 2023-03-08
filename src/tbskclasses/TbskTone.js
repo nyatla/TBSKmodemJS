@@ -33,10 +33,8 @@ export class XPskSinTone extends WasmProxy
      * @param {number} cycle  AS int
      * @param {number} div  AS int
      */
-    constructor(mod,points, cycle, div) {
-        let _cycle = set_default(cycle, 1);
-        let _div = set_default(div, 8);
-        super(mod,mod._wasm_tbskmodem_XPskSinTone(points, _cycle, _div));
+    constructor(mod,points, cycle=1, div=8) {
+        super(mod,mod._wasm_tbskmodem_XPskSinTone(points, cycle, div));
     }
 }
 

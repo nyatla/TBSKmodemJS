@@ -1,9 +1,10 @@
+//@ts-check
+
 import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
 import {DoubleInputIterator,Disposable} from "../utils/classes.js"
-//@ts-check
 
 export class TbskListener extends Disposable{
     /**

@@ -100,7 +100,9 @@ export class AudioInput
     }
     /**
      * 音声キャプチャデバイスを開きます。結果はPromiseで返します。
-     * @returns Promise
+     * @returns {Promise}
+     *  成功:resolve,失敗:reject
+     * 
      */
     open() {
         var _t = this;
@@ -151,14 +153,14 @@ export class AudioInput
                         _t._nodes = { media_src: media_src_node, handler: handler_node };
                         console.log("connected");
                         actx.suspend().then(()=>{
-                        	actx.resume().then(()=>{resolve();})
+                        	actx.resume().then(()=>{resolve(true);})
                         });
     
                     });
                 },
                 function (err) {   //onError
                     console.log('The following error occured: ' + err);
-                    reject();
+                    reject(false);
                 }
             );
         })
@@ -184,10 +186,17 @@ export class AudioInput
     }
     /**
      * 関連付けられたオーディオコンテキストを返します。
-     * @returns 
+     * @returns {AudioContext}
      */
-    audioContext(){
+    get audioContext(){
         return this._actx;
+    }
+    /**
+     * 
+     * @returns {number}
+     */
+    get sampleRate(){
+        return this._sample_rate;
     }
     capability() {
         //see https://note.com/npaka/n/n87acd80a4266

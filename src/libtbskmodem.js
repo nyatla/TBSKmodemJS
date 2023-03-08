@@ -1,6 +1,5 @@
 
 import tbskmodemjsWASM from "./wasm/tbskmodem_wasm_mod.wasm"
-// @ts-check
 import {TbskException} from "./utils/classes"
 
 import {AudioInput} from "./audio/AudioInput"
@@ -13,6 +12,7 @@ import { TbskListener } from "./tbskclasses/TbskListener";
 import { SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
 
 
+// @ts-check
 
 /**
  * ref::
@@ -110,28 +110,28 @@ export class TBSKmodemJS
             constructor(...args) {
                 super(...[wasm].concat(args));
             }
-        }
+        };
         /** @class {TbskDemodulator}*/
         this.TbskDemodulator=class extends TbskDemodulator
         {
             constructor(...args) {
                 super(...[wasm].concat(args));
             }
-        }
+        };
         /** @class {TbskModem}*/
         this.TbskModem=class extends TbskModem
         {
             constructor(...args) {
                 super(...[wasm].concat(args));
             }
-        }
+        };
         /** @class {TbskListener}*/
         this.TbskListener=class extends TbskListener
         {
             constructor(...args) {
                 super(...[wasm].concat(args));
             }
-        }
+        };
     }    
 }
 
