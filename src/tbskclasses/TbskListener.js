@@ -1,14 +1,12 @@
-//@ts-check
-
-import {TbskDemodulator} from "./TbskDemodulator"
-import {RecoverableStopIteration} from "./RecoverableStopIteration"
-import {StopIteration} from "./StopIteration"
+import {TbskDemodulator} from "./TbskDemodulator.js"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
 import {DoubleInputIterator,Disposable} from "../utils/classes.js"
+import {RecoverableStopIteration} from "./RecoverableStopIteration"
 
 export class TbskListener extends Disposable{
     /**
      * onStart,onData,onEndはpush関数をトリガーに非同期に呼び出します。
+     * 
      * デコードオブジェクトは、T put(data),reset()の関数を持つオブジェクトで、与えられたdataからTが生成できたときにTを返します。生成できない場合はundefinedです。resetで状態を初期化します。
      * 
      * 
@@ -146,8 +144,6 @@ export class TbskListener extends Disposable{
                             }
                             console.log("Signal lost!");
                             callOnEnd();
-                        }else{
-                            console.log(e);
                         }
                         //ここではStopイテレーションの区別がつかないから、次のシグナル検出で判断する。
                     }

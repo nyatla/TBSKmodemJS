@@ -37,7 +37,7 @@ export class AudioPlayer
     {
 		if(!this._src || this._playing){throw new Error();}
 		let _t=this;
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             _t._src.start();
 			_t._playing=true;
             _t._src.onended=()=>{

@@ -9,6 +9,45 @@ export class TbskException extends Error {
     }
 }
 
+export class PromiseTaskQ{
+    constructor(){
+        this._q=[];
+        this._run=false;
+    }
+    push(f){
+        if(!f){
+            return;
+        }
+        let _t=this;
+        _t._q.push(f);
+        function kick(){
+            let p=Promise.resolve();
+            _t._run=true;
+            p.then(()=>{
+                try{
+                    let f=_t._q[0];
+                    _t._q.shift();
+                    f();
+                }finally{
+                    if(_t._q.length>0){
+                        return kick();
+                    }else{
+                        _t._run=false;
+                    }
+                }
+            });
+            return p;
+        }
+        //1個めならキック
+        if(!_t._run){
+        		console.log("kick");
+            kick();
+        }
+    }
+    isIdle(){
+        return !this._run;
+    }
+}
 
 
 export class Disposable {
