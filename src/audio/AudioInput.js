@@ -1,3 +1,4 @@
+import {Rms} from "../utils/Rms";
 /**
  * AudioWorkletNodeを使ったAudioキャプチャ
  */
@@ -81,6 +82,7 @@ export class AudioInput
         _t._nodes = null;
         _t._onsound = null;
         _t._actx = null;
+        _t._rms=new Rms(Math.max(sample_rate/100,10));
     }
     enumerateDevices() {
         const constraints = {
@@ -139,8 +141,12 @@ export class AudioInput
                         handler_node.port.onmessage = (event) => {
                             switch(event.data["name"]){
                             case "data":
+                                let v=event.data.value;
+                                for(let i=0;i<v.length;i++){
+                                    _t._rms.update(v[i]);
+                                }                                
                                 if (_t._onsound) {
-                                    _t._onsound(event.data.value);
+                                    _t._onsound(v);
                                 }
                                 break;
                             default:
@@ -225,5 +231,8 @@ export class AudioInput
         this._onsound = null;
         this._nodes.handler.port.postMessage({name:"stop"});
         console.log("recorder stopped");
+    }
+    get rms(){
+        return this._rms.getLastRms();
     }
 }

@@ -20,7 +20,7 @@ import { SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.1.5";
+const VERSION="TBSKmodemJS/0.2.0";
 
 /**
  * 
@@ -33,7 +33,7 @@ export class TBSKmodemJS
      * 必要なAPIが揃っているかを返す。
      * @returns {boolean}
      */
-    static checkApis()
+    static checkEnvironment()
     {
         let apis={
             "mediaDevice":navigator.mediaDevices.getUserMedia?true:false,
@@ -53,7 +53,7 @@ export class TBSKmodemJS
      */
     static async load() 
     {
-        let check=TBSKmodemJS.checkApis();
+        let check=TBSKmodemJS.checkEnvironment();
         if(!check.success){
             throw new TbskException("Missing required APIs.");
         }

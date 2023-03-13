@@ -33,10 +33,13 @@ class Workflow
         let _t=this;
         _t._input_buf=input_buf;
         _t._kill_request=false;
+        _t._gen=undefined;
         //このワークフローのPromise
         _t.th_promise=new Promise((resolve)=>{
             /**@type {Generator|undefined} */
             _t._gen=this.proc(demod,input_buf,decoder,handler,resolve);
+        }).then(()=>{
+            _t._gen=undefined;
         });
     }
     /**
@@ -177,7 +180,6 @@ class Workflow
                 return;//done
             }
         } finally {
-            this._gen=undefined;
             if (out_buf) { out_buf.dispose(); }
             if (dresult) { dresult.dispose(); }
             resolver();//ジェネレータが完了した通知
@@ -188,13 +190,12 @@ class Workflow
 }
 
 
-export class TbskListener2 extends Disposable
+class TbskListener2 extends Disposable
 {
     /**
      * 非同期にコールされるpushは、信号を検出するとonPacketでパケットハンドラを呼び出します。
      * onPacketハンドラは新しいIPacketHandlerを継承したパケット処理クラスを呼び出してください。
      * 
-     
      */
     constructor(mod,tone, preamble_th=1.0,preamble_cycle=4,decoder = undefined) {
         super();
@@ -219,7 +220,7 @@ export class TbskListener2 extends Disposable
      * onStart,onData,onEndの順でコールバック関数を呼び出します。
      * onStartが呼び出された後は、必ずonEndが呼び出されます。
      * @returns {Promise}
-     * 処理シーケンス受信の完了を通知するPromiseです。
+     * 受信シーケンスが中断/完了したときに呼び出されます。
      */
     start(onStart,onData,onEnd){
         TBSK_ASSERT(!this._currentGenerator);
@@ -228,7 +229,7 @@ export class TbskListener2 extends Disposable
         let decoder = this._decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
 
         this._currentGenerator =new Workflow(this._demod, this._input_buf, decoder,{onStart:onStart,onData:onData,onEnd:onEnd});//新規生成
-        this._currentGenerator.waitForEnd().then(()=>{  //ここいきなりこれはないわー
+        return this._currentGenerator.waitForEnd().then(()=>{ 
             _t._currentGenerator=undefined;
         });
     }
@@ -263,7 +264,9 @@ export class TbskListener2 extends Disposable
 }
 
 
-
+/**
+ * TBSK変調信号の送受信機能を統合したモデムクラスです。
+ */
 export class TbskModem extends Disposable
 {
     static ST={
@@ -274,17 +277,20 @@ export class TbskModem extends Disposable
         RX_RUNNING: 4,
         RX_BREAKING:5
     };
+    /**
+     * インスタンスの状態を返します。
+     */
     get status(){return this._status;};
 
 
     
     /**
      * @param {*} mod 
-     * @param {*} carrier 
+     * @param {AudioInput|number|undefined} audio_input|carrier
      * @param {TraitTone|XPskSinTone|SinTone|undefined} tone
      * @param {number|undefined} preamble_cycle 
      */
-    constructor(mod,carrier=16000,tone=undefined,preamble_cycle=undefined,decoder=undefined)
+    constructor(mod,audio_input=undefined,tone=undefined,preamble_cycle=undefined,decoder=undefined)
     {
         super();
         this._current_rx=undefined;
@@ -295,7 +301,18 @@ export class TbskModem extends Disposable
             mod,tone,1.0,preamble_cycle,
             decoder);
         this._current_tx=undefined;
-        this._audio_input=new AudioInput(carrier);
+
+        this._audio_input=((a)=>{
+            if(a==undefined){
+                return new AudioInput(16000);
+            }else if (a instanceof AudioInput){
+                return a;
+            }else if(a instanceof Number){
+                return new AudioInput(a);
+            }else{
+                throw new TbskException();
+            }
+        })(audio_input);
         /** @type {?} */
         this._open_promise=this._audio_input.open()
         /** @type {?} */
@@ -429,10 +446,11 @@ export class TbskModem extends Disposable
         class RxSession{
             constructor(listener)
             {
-
-                let promise=new Promise((resolve,reject)=>{
+                let promise=new Promise((resolve)=>{
+                    let packet_accepted=false;
                     listener.start(
                         ()=>{
+                            packet_accepted=true;
                             Promise.resolve().then(
                                 onStart
                             );
@@ -445,20 +463,21 @@ export class TbskModem extends Disposable
                         ()=>{
                             Promise.resolve().then(()=>{
                                 onClose();
-                            }).then(()=>{
-                                _t._status=TbskModem.ST.IDLE;                                
-                                resolve(true);//rxの完了通知用
                             });
                         },
-                    );
+                    ).then(()=>{
+                        _t._status=TbskModem.ST.IDLE;
+                        resolve(packet_accepted);
+                    })
                 });
-
                 this._listener=listener;
                 this._promise=promise;
             }
             cancel(){
-                return this._listener.stop();
-            }            
+                return this._listener.stop().then(()=>{
+                    _t._status=TbskModem.ST.IDLE;}
+                );
+            }
         }
         _t._current_rx=new RxSession(_t._listener);;
         _t._status=TbskModem.ST.RX_RUNNING;
@@ -468,7 +487,7 @@ export class TbskModem extends Disposable
      * rxを停止して待機状態になるまで待ちます。
      * @returns {Promise<boolean>}
      * 待機状態が完了するとresolveします。
-     * 戻り値は、待機が成功した場合true,失敗した場合falsseです。
+     * 戻り値は、待機が成功した場合true,失敗した場合falseです。
      */
     rxBreak()
     {
@@ -476,10 +495,12 @@ export class TbskModem extends Disposable
         case TbskModem.ST.IDLE:
             return Promise.resolve(true);
         case TbskModem.ST.RX_RUNNING:
-            TBSK_ASSERT(this._current_tx);
+            TBSK_ASSERT(this._current_rx);
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
-            return new Promise((resolve)=>{this._current_rx.cancel().then(()=>{resolve(true)});});
+            let a=this._current_rx.cancel();
+            console.log(a);
+            return a;
         default:
             return Promise.resolve(false);
         }
@@ -490,5 +511,11 @@ export class TbskModem extends Disposable
      */
     get rxReady(){
         return this._status==TbskModem.ST.IDLE;
+    }
+    /**
+     * オーディオ入力のRMS値を返します。
+     */
+    get rms(){
+        return this._audio_input.rms;
     }
 }
