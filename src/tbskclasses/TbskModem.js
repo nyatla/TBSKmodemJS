@@ -270,12 +270,14 @@ class TbskListener2 extends Disposable
 export class TbskModem extends Disposable
 {
     static ST={
-        OPENING:0,
-        IDLE:1,
-        TX_RUNNING: 2,
-        TX_BREAKING:3,
-        RX_RUNNING: 4,
-        RX_BREAKING:5
+        CLOSED:0,
+        OPENING:1,
+        CLOSING:1,
+        IDLE:2,
+        TX_RUNNING: 3,
+        TX_BREAKING:4,
+        RX_RUNNING: 5,
+        RX_BREAKING:6
     };
     /**
      * インスタンスの状態を返します。
@@ -286,69 +288,78 @@ export class TbskModem extends Disposable
     
     /**
      * @param {*} mod 
-     * @param {AudioInput|number|undefined} audio_input|carrier
      * @param {TraitTone|XPskSinTone|SinTone|undefined} tone
      * @param {number|undefined} preamble_cycle 
      */
-    constructor(mod,audio_input=undefined,tone=undefined,preamble_cycle=undefined,decoder=undefined)
+    constructor(mod,tone=undefined,preamble_cycle=undefined,decoder=undefined)
     {
         super();
+        this._status=TbskModem.ST.CLOSED;
         this._current_rx=undefined;
-        this._attached_tone=tone?undefined:new XPskSinTone(mod,10,10);
-        tone=tone?tone:this._attached_tone;
+        this._current_tx=undefined;
+        this._audio_input=undefined;
+        let attached_tone=tone?undefined:new XPskSinTone(mod,10,10);
+        tone=tone?tone:attached_tone;
         this._mod=new TbskModulator(mod,tone,preamble_cycle);
         this._listener=new TbskListener2(
             mod,tone,1.0,preamble_cycle,
             decoder);
-        this._current_tx=undefined;
+        if(attached_tone){
+            attached_tone.dispose();//内部コピーがあるからもういらない。
+        }
 
-        this._audio_input=((a)=>{
-            if(a==undefined){
-                return new AudioInput(16000);
-            }else if (a instanceof AudioInput){
-                return a;
-            }else if(a instanceof Number){
-                return new AudioInput(a);
-            }else{
-                throw new TbskException();
-            }
-        })(audio_input);
-        /** @type {?} */
-        this._open_promise=this._audio_input.open()
-        /** @type {?} */
-        this._open_result=undefined;
-        this._status=TbskModem.ST.OPENING;
+
     }
     /**
      * Audioデバイスの準備ができるまで待ちます。
+     * @param {number} carrier
      * @returns {Promise}
      * resolve(boolean) trueで成功,falseで失敗
+     * ステータス以上の場合はrejectです。
      */
-    waitForOpen(){
+    open(carrier=16000)
+    {
         let _t=this;
-        //既にopenなら結果を中継
-        if(!_t._open_promise){
-            return Promise.resolve(_t._open_result);
+        if(_t._status!=TbskModem.ST.CLOSED){
+            return Promise.reject();
         }
-        return this._open_promise.then(
+        let audio_input=new AudioInput(16000);
+        /** @type {?} */
+        let open_promise=audio_input.open()
+        /** @type {?} */
+        _t._status=TbskModem.ST.OPENING;
+
+        return new Promise((resolve)=>{
+            open_promise.then(
             ()=>{
-                _t._open_promise=undefined;
-                _t._open_result=true;
-                _t._audio_input.start((s)=>{
+                _t._audio_input=audio_input;
+                audio_input.start((s)=>{
                     _t._listener.push(s);
                 });
                 _t._status=TbskModem.ST.IDLE;
+                resolve(true);
             },
-            ()=>{_t._open_promise=undefined;_t._open_result=false;}
+            ()=>{resolve(false);}
+            )}
         );
+    }
+    close()
+    {
+        let _t=this;
+        if(_t._status!=TbskModem.ST.IDLE){
+            return Promise.reject();
+        }
+        _t._status=TbskModem.ST.CLOSING;
+        this._audio_input.close();
+        return Promise.resolve().then(()=>{_t._status=TbskModem.ST.CLOSED;});
     }
     dispose()
     {
-        this._audio_input.close();
-        if(this._attached_tone){
-            this._attached_tone.dispose();
-            this._attached_tone=undefined;
+        if(this._status!=TbskModem.ST.CLOSED){
+            this.close();
         }
+        this._mod.dispose();
+        this._listener.dispose();
     }
     /**
      * srcをオーディオインタフェイスへ送信します。
@@ -358,7 +369,7 @@ export class TbskModem extends Disposable
      * 送信が完了、またはtxBreakで中断した場合にresolveします。
      * 送信処理を開始できない場合rejectします。
      */
-    tx(src)
+    tx(src,stopsymbol=true)
     {
         if(!this.txReady){
             return Promise.reject();
@@ -367,7 +378,7 @@ export class TbskModem extends Disposable
         let ainput=this._audio_input;
         let actx=ainput.audioContext;
         let mod=this._mod;
-        let f32_array = mod.modulate(src);
+        let f32_array = mod.modulate(src,stopsymbol);
         let buf = actx.createBuffer(1, f32_array.length, ainput.sampleRate);
         buf.getChannelData(0).set(f32_array);
 
@@ -415,7 +426,6 @@ export class TbskModem extends Disposable
         case TbskModem.ST.IDLE:
             return Promise.resolve(true);
         case TbskModem.ST.TX_RUNNING:
-            TBSK_ASSERT(this._current_tx);
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
             return new Promise((resolve)=>{this._current_tx.cancel().then(()=>{resolve(true)});});
@@ -495,7 +505,6 @@ export class TbskModem extends Disposable
         case TbskModem.ST.IDLE:
             return Promise.resolve(true);
         case TbskModem.ST.RX_RUNNING:
-            TBSK_ASSERT(this._current_rx);
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
             let a=this._current_rx.cancel();
