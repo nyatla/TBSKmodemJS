@@ -1,12 +1,20 @@
 //@ts-check
 
+import { TbskException } from "../utils/classes";
+import { TBSK_ASSERT } from "../utils/functions";
+
 /**
  * Audioバッファを一度だけ再生するプレイヤーです。
  */
 export class AudioPlayer
 {
+	static ST={
+		IDLE:1,
+		PLAYING:2,
+		STOPWAIT:3,
+		END:4
+	}
 	/**
-	 * 
 	 * @param {AudioContext} actx 
 	 * @param {AudioBuffer} audio_buffer 
 	 */
@@ -17,45 +25,61 @@ export class AudioPlayer
 		let src= _t._actx.createBufferSource();
 		src.buffer=audio_buffer;
 		src.connect(_t._actx.destination);
-		/** @type  {AudioBufferSourceNode?}*/
+		/** @type  {AudioBufferSourceNode}*/
 		_t._src=src;
-		_t._playing=false;
+		_t._play_promise=undefined;
+		_t._status=AudioPlayer.ST.IDLE;
 	}
 	/**
 	 * 再生が完了するとtrue
 	 * @returns {boolean}
 	 */
 	get isFinised(){
-		return !this._playing;
+		return this._status==AudioPlayer.ST.END;
 	}
 	/**
-	 * 再生します。
-	 * @returns {Promise}
+	 * @async
+	 * コンテンツを再生します。
+	 * @returns {Promise<boolean>}
 	 * 再生が完了するとresolveします。
 	 */
-	play()
+	async play()
     {
-		if(!this._src || this._playing){throw new Error();}
 		let _t=this;
-        return new Promise((resolve) => {
-            _t._src.start();
-			_t._playing=true;
+		if(this._status!=AudioPlayer.ST.IDLE){
+			throw new TbskException();
+		}
+		_t._src.start();
+		_t._status=AudioPlayer.ST.PLAYING;
+		_t.play_promise= new Promise((resolve) =>
+		{
             _t._src.onended=()=>{
-				_t._playing=false;
-				_t._src=null;
-				resolve();
+				resolve(true);
+				_t._status=AudioPlayer.ST.END;
 			};
-        });		
+		})
+		return await _t.play_promise;
 	}
 	/**
+	 * @async
 	 * 再生中であれば停止します。
+	 * @returns {Promise<boolean>}
+	 * 停止状態になるとresolveします。
 	 */
-	stop()
+	async stop()
     {
-		if(this._src){
+		let _t=this;
+		switch(_t._status){
+		case AudioPlayer.ST.PLAYING:
 			this._src.stop();
-			this._playing=false;
-			this._src=null;
+			_t._status=AudioPlayer.ST.STOPWAIT;
+			return await _t.play_promise;
+		case AudioPlayer.ST.STOPWAIT:
+			return await _t.play_promise;
+		case AudioPlayer.ST.END:
+			return true;
+		default:
+			throw new TbskException();
 		}
 	}
 }

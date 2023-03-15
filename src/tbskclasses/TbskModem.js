@@ -270,8 +270,8 @@ class TbskListener2 extends Disposable
 export class TbskModem extends Disposable
 {
     static ST={
-        CLOSED:0,
-        OPENING:1,
+        CLOSED:0,   //利用不能な状態
+        OPENING:1,  //OPENを実行した
         CLOSING:1,
         IDLE:2,
         TX_RUNNING: 3,
@@ -297,6 +297,7 @@ export class TbskModem extends Disposable
         this._status=TbskModem.ST.CLOSED;
         this._current_rx=undefined;
         this._current_tx=undefined;
+        this._tx_break_promise=undefined;
         this._audio_input=undefined;
         let attached_tone=tone?undefined:new XPskSinTone(mod,10,10);
         tone=tone?tone:attached_tone;
@@ -314,8 +315,9 @@ export class TbskModem extends Disposable
      * Audioデバイスの準備ができるまで待ちます。
      * @param {number} carrier
      * @returns {Promise}
-     * resolve(boolean) trueで成功,falseで失敗
-     * ステータス以上の場合はrejectです。
+     * resolve(boolean) trueで成功,falseで失敗.
+     * ステータス異常の場合はrejectします。
+     * 
      */
     open(carrier=16000)
     {
@@ -339,7 +341,10 @@ export class TbskModem extends Disposable
                 _t._status=TbskModem.ST.IDLE;
                 resolve(true);
             },
-            ()=>{resolve(false);}
+            ()=>{
+                _t._status=TbskModem.ST.CLOSED;
+                resolve(false);
+            }
             )}
         );
     }
@@ -369,7 +374,7 @@ export class TbskModem extends Disposable
      * 送信が完了、またはtxBreakで中断した場合にresolveします。
      * 送信処理を開始できない場合rejectします。
      */
-    tx(src,stopsymbol=true)
+    async tx(src,stopsymbol=true)
     {
         if(!this.txReady){
             return Promise.reject();
@@ -384,53 +389,57 @@ export class TbskModem extends Disposable
 
 
         let _t=this;
-        class TxSession{
-            constructor(player)
-            {
-                /** @type {AudioPlayer|?} */
-                this._player=player;
-                let pp=this._player.play();
-                this._promise=new Promise((resolve)=>{
-                    pp.then(()=>{
-                        _t._status=TbskModem.ST.IDLE;
-                        resolve(true);//必ず呼ばれる
-                    })
-                });               
-            }
-            /**
-             * キャンセルが完了する/完了していたら発火するPromise
-             * @returns 
-             * 完了するとresolve
-             */
-            cancel()
-            {
-                this._player.stop();//playは発火する。
-                return this._promise;
-            }
-        }
+        // class TxSession{
+        //     constructor(actx,buf)
+        //     {
+        //         /** @type {AudioPlayer|?} */
+        //         this._player=new AudioPlayer(actx,buf);
+        //         let pp=this._player.play();
+        //         pp.then(()=>{
+        //             _t._status=TbskModem.ST.IDLE;
+        //         });
+        //     }
+        //     /**
+        //      * キャンセルが完了する/完了していたら発火するPromise
+        //      * @returns 
+        //      * 完了するとresolve
+        //      */
+        //     cancel()
+        //     {
+        //         return this._player.stop();//playは発火する。
+        //     }
+        // }
         let player=new AudioPlayer(actx,buf);
-        let current_tx=new TxSession(player);
-        this._current_tx=current_tx;
+        let pp=player.play();
+        this._current_tx=player;
         this._status=TbskModem.ST.TX_RUNNING;
-        return this._current_tx._promise;
+        await pp.then(()=>{
+            _t._status=TbskModem.ST.IDLE;
+        });
     }
     /**
+     * @async
      * 進行中のtxを中断します。
      * @returns {Promise<boolean>}
      * 待機状態が完了するとresolveします。
-     * 戻り値は、待機が成功した場合true,失敗した場合falsseです。
+     * 戻り値は、待機が成功した場合true,失敗した場合falseです。
      */
-    txBreak()
+    async txBreak()
     {
-        switch(this._status){
+        let _t=this;
+        switch(_t._status)
+        {
         case TbskModem.ST.IDLE:
-            return Promise.resolve(true);
+            return true;
         case TbskModem.ST.TX_RUNNING:
-            this._status=TbskModem.ST.RX_BREAKING;
+            _t._status=TbskModem.ST.TX_BREAKING;
+            _t._tx_break_promise=_t._current_tx?.stop();
             //@ts-ignore
-            return new Promise((resolve)=>{this._current_tx.cancel().then(()=>{resolve(true)});});
+            return await _t._tx_break_promise;
+        case TbskModem.ST.TX_BREAKING:
+            return await _t._tx_break_promise;
         default:
-            return Promise.resolve(false);
+            return false;
         }
     }
     /**
