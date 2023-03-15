@@ -61,15 +61,17 @@ class Workflow
         this.next([0]);//ダミーさん
     }
     /**
-     * ワークフローが完了するまで待つpromiseを返します。
+     * @async
+     * ワークフローが完了するまで待ちます。
      * @returns 
      */
-    waitForEnd()
+    async waitForEnd()
     {
         if(!this._gen){
-            return Promise.resolve();
+            return true;
         }
-        return this.th_promise;
+        await this.th_promise;
+        return true;
     }
 
     *proc(demod, input_buf,decoder,handler,resolver)
@@ -208,7 +210,7 @@ class TbskListener2 extends Disposable
     {
         if (this._currentGenerator) {
             try {
-                this._currentGenerator.throw(new Error('Brake workflow!'));
+                this._currentGenerator._gen.throw(new Error('Brake workflow!'));
             } catch (e) {
             }
         }
@@ -216,41 +218,40 @@ class TbskListener2 extends Disposable
         this._input_buf.dispose();
     }
     /**
+     * @async
      * 信号の検出を開始します。
      * onStart,onData,onEndの順でコールバック関数を呼び出します。
      * onStartが呼び出された後は、必ずonEndが呼び出されます。
-     * @returns {Promise}
+     * @returns {Promise<boolean>}
      * 受信シーケンスが中断/完了したときに呼び出されます。
      */
-    start(onStart,onData,onEnd){
+    async start(onStart,onData,onEnd){
         TBSK_ASSERT(!this._currentGenerator);
         let _t=this;
 
         let decoder = this._decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
 
         this._currentGenerator =new Workflow(this._demod, this._input_buf, decoder,{onStart:onStart,onData:onData,onEnd:onEnd});//新規生成
-        return this._currentGenerator.waitForEnd().then(()=>{ 
-            _t._currentGenerator=undefined;
-        });
+        await this._currentGenerator.waitForEnd();
+        _t._currentGenerator=undefined;
+        return true;
     }
     /**
      * 信号の検出を停止します。stopは１度だけしか呼べません。
      * @returns {Promise}
      * 状態がIDLEに戻るまで待機するPromiseです。
      */
-    stop()
+    async stop()
     {
         let _t=this;
         TBSK_ASSERT(this._currentGenerator);
         //@ts-ignore
         _t._currentGenerator.kill();
         //@ts-ignore
-        let r=_t._currentGenerator.waitForEnd();
+        await _t._currentGenerator.waitForEnd();
         _t._currentGenerator=undefined;
-        return r;
-    }
-
-    
+        return true;
+    }    
     
     push(src)
     {
@@ -298,6 +299,8 @@ export class TbskModem extends Disposable
         this._current_rx=undefined;
         this._current_tx=undefined;
         this._tx_break_promise=undefined;
+        /** @type {AudioInput} */
+        //@ts-ignore
         this._audio_input=undefined;
         let attached_tone=tone?undefined:new XPskSinTone(mod,10,10);
         tone=tone?tone:attached_tone;
@@ -319,44 +322,35 @@ export class TbskModem extends Disposable
      * ステータス異常の場合はrejectします。
      * 
      */
-    open(carrier=16000)
+    async open(carrier=16000)
     {
         let _t=this;
         if(_t._status!=TbskModem.ST.CLOSED){
-            return Promise.reject();
+            throw new TbskException();
         }
         let audio_input=new AudioInput(16000);
         /** @type {?} */
         let open_promise=audio_input.open()
         /** @type {?} */
         _t._status=TbskModem.ST.OPENING;
-
-        return new Promise((resolve)=>{
-            open_promise.then(
-            ()=>{
-                _t._audio_input=audio_input;
-                audio_input.start((s)=>{
-                    _t._listener.push(s);
-                });
-                _t._status=TbskModem.ST.IDLE;
-                resolve(true);
-            },
-            ()=>{
-                _t._status=TbskModem.ST.CLOSED;
-                resolve(false);
-            }
-            )}
-        );
+        await open_promise;
+        _t._audio_input=audio_input;
+        audio_input.start((s)=>{
+            _t._listener.push(s);
+        });
+        _t._status=TbskModem.ST.IDLE;
+        return true;
     }
-    close()
+    async close()
     {
         let _t=this;
         if(_t._status!=TbskModem.ST.IDLE){
-            return Promise.reject();
+            throw new TbskException();
         }
         _t._status=TbskModem.ST.CLOSING;
         this._audio_input.close();
-        return Promise.resolve().then(()=>{_t._status=TbskModem.ST.CLOSED;});
+        _t._status=TbskModem.ST.CLOSED;
+        return true;
     }
     dispose()
     {
@@ -367,6 +361,7 @@ export class TbskModem extends Disposable
         this._listener.dispose();
     }
     /**
+     * @async
      * srcをオーディオインタフェイスへ送信します。
      * {TbskModem#txReady}がtrueである必要があります。
      * @param {array[number]|string} src 
@@ -377,9 +372,9 @@ export class TbskModem extends Disposable
     async tx(src,stopsymbol=true)
     {
         if(!this.txReady){
-            return Promise.reject();
+            throw new TbskException();
         }
-        TBSK_ASSERT(this._status==TbskModem.ST.IDLE);
+        //@ts-ignore
         let ainput=this._audio_input;
         let actx=ainput.audioContext;
         let mod=this._mod;
@@ -387,35 +382,14 @@ export class TbskModem extends Disposable
         let buf = actx.createBuffer(1, f32_array.length, ainput.sampleRate);
         buf.getChannelData(0).set(f32_array);
 
-
         let _t=this;
-        // class TxSession{
-        //     constructor(actx,buf)
-        //     {
-        //         /** @type {AudioPlayer|?} */
-        //         this._player=new AudioPlayer(actx,buf);
-        //         let pp=this._player.play();
-        //         pp.then(()=>{
-        //             _t._status=TbskModem.ST.IDLE;
-        //         });
-        //     }
-        //     /**
-        //      * キャンセルが完了する/完了していたら発火するPromise
-        //      * @returns 
-        //      * 完了するとresolve
-        //      */
-        //     cancel()
-        //     {
-        //         return this._player.stop();//playは発火する。
-        //     }
-        // }
         let player=new AudioPlayer(actx,buf);
         let pp=player.play();
         this._current_tx=player;
         this._status=TbskModem.ST.TX_RUNNING;
-        await pp.then(()=>{
-            _t._status=TbskModem.ST.IDLE;
-        });
+        await pp;
+        _t._status=TbskModem.ST.IDLE;
+        return true;
     }
     /**
      * @async
@@ -435,9 +409,11 @@ export class TbskModem extends Disposable
             _t._status=TbskModem.ST.TX_BREAKING;
             _t._tx_break_promise=_t._current_tx?.stop();
             //@ts-ignore
-            return await _t._tx_break_promise;
+            await _t._tx_break_promise;
+            return true;
         case TbskModem.ST.TX_BREAKING:
-            return await _t._tx_break_promise;
+            await _t._tx_break_promise;
+            return true;
         default:
             return false;
         }
@@ -450,77 +426,63 @@ export class TbskModem extends Disposable
         return this._status==TbskModem.ST.IDLE;
     }
     /**
+     * @async
      * パケットを受信します。
      * @returns {Promise}
      * パケットの受信を完了するとresolveします。
      * 受信が開始できないとrejectします。
      * 
      */
-    rx(onStart,onData,onClose)
+    async rx(onStart,onData,onClose)
     {
         if(!this.rxReady){
-            return Promise.reject();
+            throw new TbskException();
         }
         let _t=this;
-        class RxSession{
-            constructor(listener)
-            {
-                let promise=new Promise((resolve)=>{
-                    let packet_accepted=false;
-                    listener.start(
-                        ()=>{
-                            packet_accepted=true;
-                            Promise.resolve().then(
-                                onStart
-                            );
-                        },
-                        (d)=>{
-                            Promise.resolve().then(()=>{
-                                onData(d);
-                            })
-                        },
-                        ()=>{
-                            Promise.resolve().then(()=>{
-                                onClose();
-                            });
-                        },
-                    ).then(()=>{
-                        _t._status=TbskModem.ST.IDLE;
-                        resolve(packet_accepted);
-                    })
-                });
-                this._listener=listener;
-                this._promise=promise;
-            }
-            cancel(){
-                return this._listener.stop().then(()=>{
-                    _t._status=TbskModem.ST.IDLE;}
-                );
-            }
-        }
-        _t._current_rx=new RxSession(_t._listener);;
+        let packet_accepted=false;
         _t._status=TbskModem.ST.RX_RUNNING;
-        return _t._current_rx._promise;
+        _t._current_rx=_t._listener.start(
+            ()=>{
+                packet_accepted=true;
+                Promise.resolve().then(
+                    onStart
+                );
+            },
+            (d)=>{
+                Promise.resolve().then(()=>{
+                    onData(d);
+                })
+            },
+            ()=>{
+                Promise.resolve().then(()=>{
+                    onClose();
+                });
+            },
+        );
+        await _t._current_rx;
+        _t._status=TbskModem.ST.IDLE;
+        return true;
     }
     /**
+     * @async
      * rxを停止して待機状態になるまで待ちます。
      * @returns {Promise<boolean>}
      * 待機状態が完了するとresolveします。
      * 戻り値は、待機が成功した場合true,失敗した場合falseです。
      */
-    rxBreak()
+    async rxBreak()
     {
         switch(this._status){
         case TbskModem.ST.IDLE:
-            return Promise.resolve(true);
+            return true;
         case TbskModem.ST.RX_RUNNING:
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
-            let a=this._current_rx.cancel();
-            console.log(a);
-            return a;
+            await this._listener.stop();
+            await this._current_rx;
+            return true;
         default:
-            return Promise.resolve(false);
+            return false;
         }
     }
     /**

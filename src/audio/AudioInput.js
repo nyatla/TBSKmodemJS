@@ -101,12 +101,12 @@ export class AudioInput
             });
     }
     /**
+     * @async
      * 音声キャプチャデバイスを開きます。結果はPromiseで返します。
-     * @returns {Promise}
-     *  成功:resolve,失敗:reject
+     * @returns {Promise<boolean>}
      * 
      */
-    open() {
+    async open() {
         var _t = this;
         let dev = this._media_devices;
 
@@ -121,55 +121,45 @@ export class AudioInput
             },
             video: false
         };
-        return new Promise((resolve, reject) => {
+        let stream=await dev.getUserMedia(constraints);
+        _t._media_stream = stream;
+        /*  https://addpipe.com/simple-web-audio-recorder-demo/js/app.js
+            create an audio context after getUserMedia is called
+            sampleRate might change after getUserMedia is called, like it does on macOS when recording through AirPods
+            the sampleRate defaults to the one set in your OS for your playback device
+        */
+        let actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: _t._sample_rate });
+        _t._actx = actx;
+        console.log("actx sample rate",actx.sampleRate);
+        console.log("stream capability",stream.getAudioTracks()[0].getCapabilities().sampleRate);
+        let media_src_node = actx.createMediaStreamSource(stream);
 
-            dev.getUserMedia(constraints).then(
-                function (stream) {   //onSuccess
-                    _t._media_stream = stream;
-                    /*  https://addpipe.com/simple-web-audio-recorder-demo/js/app.js
-                        create an audio context after getUserMedia is called
-                        sampleRate might change after getUserMedia is called, like it does on macOS when recording through AirPods
-                        the sampleRate defaults to the one set in your OS for your playback device
-                    */
-		            let actx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: _t._sample_rate });
-                    _t._actx = actx;
-                    console.log("actx sample rate",actx.sampleRate);
-                    console.log("stream capability",stream.getAudioTracks()[0].getCapabilities().sampleRate);
-                    let media_src_node = actx.createMediaStreamSource(stream);
-                    actx.audioWorklet.addModule(URL.createObjectURL(ww_script)).then(() => {
-                        let handler_node = new AudioWorkletNode(actx, 'dump-processor');
-                        handler_node.port.onmessage = (event) => {
-                            switch(event.data["name"]){
-                            case "data":
-                                let v=event.data.value;
-                                for(let i=0;i<v.length;i++){
-                                    _t._rms.update(v[i]);
-                                }                                
-                                if (_t._onsound) {
-                                    _t._onsound(v);
-                                }
-                                break;
-                            default:
-	                            console.log("unknown msg");
-                            }
-                        };
-                        media_src_node.connect(handler_node);
-                        handler_node.connect(actx.destination);
-
-                        _t._nodes = { media_src: media_src_node, handler: handler_node };
-                        console.log("connected");
-                        actx.suspend().then(()=>{
-                        	actx.resume().then(()=>{resolve(true);})
-                        });
-    
-                    });
-                },
-                function (err) {   //onError
-                    console.log('The following error occured: ' + err);
-                    reject(false);
+        await actx.audioWorklet.addModule(URL.createObjectURL(ww_script));
+        let handler_node = new AudioWorkletNode(actx, 'dump-processor');
+        handler_node.port.onmessage = (event) => {
+            switch(event.data["name"]){
+            case "data":
+                let v=event.data.value;
+                for(let i=0;i<v.length;i++){
+                    _t._rms.update(v[i]);
+                }                                
+                if (_t._onsound) {
+                    _t._onsound(v);
                 }
-            );
-        })
+                break;
+            default:
+                console.log("unknown msg");
+            }
+        };
+        media_src_node.connect(handler_node);
+        handler_node.connect(actx.destination);
+
+        _t._nodes = { media_src: media_src_node, handler: handler_node };
+        console.log("connected");
+        //actx.suspend().then(()=>{
+        //    actx.resume().then(()=>{resolve(true);})
+        //});
+        return true;
     }
     /**
      * 音声キャプチャデバイスを閉じます。以降は使用不能です。
@@ -188,7 +178,8 @@ export class AudioInput
         const tracks = this._media_stream.getTracks();
         tracks.forEach(function(track) {
             track.stop();
-        });        
+        });
+        return true;     
     }
     /**
      * 関連付けられたオーディオコンテキストを返します。
