@@ -64,7 +64,6 @@ export class TBSKmodemJS
         const mod = require("./wasm/tbskmodem_wasm_mod.js");
         const b = Buffer.from(tbskmodemjsWASM.split(",")[1], "base64");
         let wasm = await mod({ wasmBinary: b });
-        wasm._load_apis();
         TBSKmodemJS._instance=new TBSKmodemJS(wasm);
         return TBSKmodemJS._instance;
     }

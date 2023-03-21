@@ -117,6 +117,7 @@ class Workflow
                         throw new Error();
                 }
             } finally {
+                console.log("debug",dresult);
                 dresult.dispose();
                 dresult = null;
             }
@@ -223,7 +224,7 @@ class TbskListener2 extends Disposable
      * onStart,onData,onEndの順でコールバック関数を呼び出します。
      * onStartが呼び出された後は、必ずonEndが呼び出されます。
      * @returns {Promise<boolean>}
-     * 受信シーケンスが中断/完了したときに呼び出されます。
+     * 常にtrueです。
      */
     async start(onStart,onData,onEnd){
         TBSK_ASSERT(!this._currentGenerator);
@@ -318,7 +319,6 @@ export class TbskModem extends Disposable
      * Audioデバイスの準備ができるまで待ちます。
      * @param {number} carrier
      * @returns {Promise}
-     * resolve(boolean) trueで成功,falseで失敗.
      * ステータス異常の場合はrejectします。
      * 
      */
@@ -339,7 +339,7 @@ export class TbskModem extends Disposable
             _t._listener.push(s);
         });
         _t._status=TbskModem.ST.IDLE;
-        return true;
+        return;
     }
     async close()
     {
@@ -350,7 +350,7 @@ export class TbskModem extends Disposable
         _t._status=TbskModem.ST.CLOSING;
         this._audio_input.close();
         _t._status=TbskModem.ST.CLOSED;
-        return true;
+        return;
     }
     dispose()
     {
@@ -389,14 +389,13 @@ export class TbskModem extends Disposable
         this._status=TbskModem.ST.TX_RUNNING;
         await pp;
         _t._status=TbskModem.ST.IDLE;
-        return true;
+        return;
     }
     /**
      * @async
      * 進行中のtxを中断します。
-     * @returns {Promise<boolean>}
+     * @returns {Promise<void>}
      * 待機状態が完了するとresolveします。
-     * 戻り値は、待機が成功した場合true,失敗した場合falseです。
      */
     async txBreak()
     {
@@ -404,18 +403,18 @@ export class TbskModem extends Disposable
         switch(_t._status)
         {
         case TbskModem.ST.IDLE:
-            return true;
+            return;
         case TbskModem.ST.TX_RUNNING:
             _t._status=TbskModem.ST.TX_BREAKING;
             _t._tx_break_promise=_t._current_tx?.stop();
             //@ts-ignore
             await _t._tx_break_promise;
-            return true;
+            return;
         case TbskModem.ST.TX_BREAKING:
             await _t._tx_break_promise;
-            return true;
+            return;
         default:
-            return false;
+            throw new TbskException();
         }
     }
     /**
@@ -427,13 +426,11 @@ export class TbskModem extends Disposable
     }
     /**
      * @async
-     * パケットを受信します。
+     * パケットを1つ受信します。
      * @returns {Promise}
-     * パケットの受信を完了するとresolveします。
-     * 受信が開始できないとrejectします。
-     * 
+     * パケット受信を完了するとresolveします。
      */
-    async rx(onStart,onData,onClose)
+    async rx(onSignal,onData,onSignalLost)
     {
         if(!this.rxReady){
             throw new TbskException();
@@ -445,7 +442,7 @@ export class TbskModem extends Disposable
             ()=>{
                 packet_accepted=true;
                 Promise.resolve().then(
-                    onStart
+                    onSignal
                 );
             },
             (d)=>{
@@ -454,9 +451,7 @@ export class TbskModem extends Disposable
                 })
             },
             ()=>{
-                Promise.resolve().then(()=>{
-                    onClose();
-                });
+                Promise.resolve().then(onSignalLost);
             },
         );
         await _t._current_rx;
@@ -466,23 +461,22 @@ export class TbskModem extends Disposable
     /**
      * @async
      * rxを停止して待機状態になるまで待ちます。
-     * @returns {Promise<boolean>}
+     * @returns {Promise<void>}
      * 待機状態が完了するとresolveします。
-     * 戻り値は、待機が成功した場合true,失敗した場合falseです。
      */
     async rxBreak()
     {
         switch(this._status){
         case TbskModem.ST.IDLE:
-            return true;
+            return;
         case TbskModem.ST.RX_RUNNING:
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
             await this._listener.stop();
             await this._current_rx;
-            return true;
+            return;
         default:
-            return false;
+            throw new TbskException();
         }
     }
     /**
