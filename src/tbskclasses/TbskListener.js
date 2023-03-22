@@ -12,7 +12,8 @@ export class TbskListener extends Disposable{
      * 
      * @param {Tone} tone
      * @param {Preamble} preamble
-     * @param {onStart,onData,onEnd} events ハッシュ配列
+     * @param {onStart,onData,onEnd} events
+     * @param {string|undefined} decoder
      */
     constructor(mod,tone, preamble_th=1.0,preamble_cycle=4, events = {}, decoder = undefined) {
         super();

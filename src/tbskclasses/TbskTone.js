@@ -6,13 +6,25 @@ import {set_default} from "../utils/functions.js"
 export class TraitTone extends WasmProxy {
     /**
      * @param {*} mod 
+     * @param {*} inst
+     */
+    constructor(mod,inst) {
+        super(mod,inst);
+    }
+}
+
+
+
+export class CustomTone extends TraitTone {
+    /**
+     * @param {*} mod 
      * @param {number[]} double_array 
      */
     constructor(mod,double_array) {
         super(mod,mod._wasm_tbskmodem_TraitTone(double_array));
     }
 }
-export class SinTone extends WasmProxy {
+export class SinTone extends TraitTone {
     /**
      * 
      * @param {*} mod 
@@ -24,7 +36,7 @@ export class SinTone extends WasmProxy {
         super(mod,mod._wasm_tbskmodem_SinTone(points, _cycle));
     }
 }
-export class XPskSinTone extends WasmProxy
+export class XPskSinTone extends TraitTone
 {
     /**
      * 

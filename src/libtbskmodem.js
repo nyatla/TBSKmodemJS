@@ -9,7 +9,8 @@ import { TbskModem } from "./tbskclasses/TbskModem";
 import { TbskModulator } from "./tbskclasses/TbskModulator";
 import { TbskDemodulator } from "./tbskclasses/TbskDemodulator";
 import { TbskListener } from "./tbskclasses/TbskListener";
-import { SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
+import { CustomTone,SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
+import { EasyChat} from "./misc/EasyChat";
 
 
 // @ts-check
@@ -20,7 +21,7 @@ import { SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.2.0";
+const VERSION="TBSKmodemJS/0.3.0";
 
 /**
  * 
@@ -77,21 +78,37 @@ export class TBSKmodemJS
         this.wasm=wasm;
         /** @type {string}*/
         this.version=VERSION+";"+wasm.VERSION;
-        class AudioSub{
-            constructor(){
-                this.AudioInput=AudioInput;
-                this.AudioPlayer=AudioPlayer;
+
+        this.audio={
+            /** @class {@link AudioInput} */
+            AudioInput:AudioInput,
+            /** @class {@link AudioPlayer} */
+            AudioPlayer:AudioPlayer,
+        };
+        this.misc={
+            /** @class {@link EasyChat} */
+            EasyChat:class extends EasyChat{
+                /**
+                 * {@link EasyChat}クラスのエイリアスです。
+                 * @param {TbskModem} modem 
+                 * @param {number} carrier 
+                 */ 
+                constructor(modem=undefined,carrier=16000) {
+                    super(...[wasm].concat(arguments));
+                }
             }
         };
-        /** @class {AudioSub}*/
-        this.audio=new AudioSub();
-        /** @class {TraitTone}*/
-        this.CustomTone=class extends TraitTone{
+        /** @class {TraitTone} */
+        this.CustomTone=class extends CustomTone{
+            /**
+             * 
+             * @param {Number[]} d 
+             */
             constructor(d){
                 super(wasm,d);
             }
         };
-        /** @class {SinTone}*/
+        /** @class {SinTone} */
         this.SinTone=class extends SinTone{
             constructor(points=10,cycle=10){
                 super(wasm,points,cycle);
@@ -120,15 +137,27 @@ export class TBSKmodemJS
         /** @class {TbskModem}*/
         this.TbskModem=class extends TbskModem
         {
-            constructor(...args) {
-                super(...[wasm].concat(args));
+            /**
+             * @param {TraitTone|undefined} tone
+             * @param {number|undefined} preamble_cycle 
+             */
+            constructor(tone=undefined,preamble_cycle=undefined)
+            {
+                super(...[wasm].concat([tone,preamble_cycle]));
             }
         };
-        /** @class {TbskListener}*/
+        /** @class {@link TbskListener}*/
         this.TbskListener=class extends TbskListener
         {
-            constructor(...args) {
-                super(...[wasm].concat(args));
+            /**
+             * @param {TraitTone} tone
+             * @param {number} preamble_th
+             * @param {{onStart,onData,onEnd}} events
+             * @param {string|undefined} decoder
+             */
+            constructor(tone, preamble_th=1.0,preamble_cycle=4, events = {}, decoder = undefined)
+            {
+                super(...[wasm].concat([tone,preamble_th,preamble_cycle,events,decoder]));
             }
         };
     }    

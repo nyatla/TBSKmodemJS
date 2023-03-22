@@ -1,5 +1,6 @@
 import {WasmProxy,IntOutputIterator,DoubleInputIterator} from "../utils/classes.js"
 import {PassDecoder,Utf8Decoder} from "../utils/decoder.js"
+import { TraitTone } from "./TbskTone.js";
 
 //@ts-check
 
@@ -7,7 +8,7 @@ export class TbskDemodulator extends WasmProxy
 {
     /**
      * 
-     * @param {Tone} tone
+     * @param {TraitTone} tone
      * @param {Preamble} preamble
      */
     constructor(mod,tone, preamble_th=1.,preamble_cycle=4) {

@@ -1,6 +1,7 @@
 //@ts-check
 
 import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes.js"
+import { TraitTone } from "./TbskTone.js";
 
 /**
  * 
@@ -8,9 +9,9 @@ import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes.
 export class TbskModulator extends WasmProxy
 {
     /**
-     * 
-     * @param {Tone} tone
-     * @param {Preamble} preamble
+     * @param {*} mod
+     * @param {TraitTone} tone
+     * @param {number} preamble_cycle
      */
     constructor(mod,tone, preamble_cycle = 4) {  
         super(mod,mod._wasm_tbskmodem_TbskModulator_A(tone._wasm_instance, preamble_cycle));

@@ -223,6 +223,11 @@ export class AudioInput
         this._nodes.handler.port.postMessage({name:"stop"});
         console.log("recorder stopped");
     }
+    clear(){
+        if (!this._actx) { throw new Error(); }
+        this._nodes.handler.port.postMessage({name:"clear"});
+        console.log("recorder cleared");
+    }
     get rms(){
         return this._rms.getLastRms();
     }

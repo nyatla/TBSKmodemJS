@@ -5,7 +5,7 @@ import { AudioPlayer } from "../audio/AudioPlayer.js";
 import {TBSK_ASSERT} from "../utils/functions"
 
 import { TbskModulator } from "./TbskModulator.js";
-import { SinTone, XPskSinTone,TraitTone} from "./TbskTone.js";
+import { XPskSinTone,TraitTone} from "./TbskTone.js";
 
 import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
@@ -290,8 +290,8 @@ export class TbskModem extends Disposable
     
     /**
      * @param {*} mod 
-     * @param {TraitTone|XPskSinTone|SinTone|undefined} tone
-     * @param {number|undefined} preamble_cycle 
+     * @param {TraitTone|undefined} tone
+     * @param {Number|undefined} preamble_cycle 
      */
     constructor(mod,tone=undefined,preamble_cycle=undefined,decoder=undefined)
     {
@@ -303,11 +303,17 @@ export class TbskModem extends Disposable
         /** @type {AudioInput} */
         //@ts-ignore
         this._audio_input=undefined;
-        let attached_tone=tone?undefined:new XPskSinTone(mod,10,10);
-        tone=tone?tone:attached_tone;
-        this._mod=new TbskModulator(mod,tone,preamble_cycle);
+        let attached_tone;
+        let tone2;
+        if(!tone){
+            attached_tone=new XPskSinTone(mod,10,10);
+            tone2=attached_tone;
+        }else{
+            tone2=tone;
+        }
+        this._mod=new TbskModulator(mod,tone2,preamble_cycle);
         this._listener=new TbskListener2(
-            mod,tone,1.0,preamble_cycle,
+            mod,tone2,1.0,preamble_cycle,
             decoder);
         if(attached_tone){
             attached_tone.dispose();//内部コピーがあるからもういらない。
@@ -383,11 +389,24 @@ export class TbskModem extends Disposable
         buf.getChannelData(0).set(f32_array);
 
         let _t=this;
-        let player=new AudioPlayer(actx,buf);
+        class Player extends AudioPlayer{
+            constructor(actx,buf){super(actx,buf);}
+            play(){
+                return super.play()
+                .then(()=>{return new Promise((resolve)=>{setTimeout(resolve,30)})});
+            }
+            stop(){
+                return super.stop()
+                .then(()=>{return new Promise((resolve)=>{setTimeout(resolve,30)})});
+            }
+        }
+        let player=new Player(actx,buf);
+
         let pp=player.play();
         this._current_tx=player;
         this._status=TbskModem.ST.TX_RUNNING;
         await pp;
+        _t._audio_input.clear();
         _t._status=TbskModem.ST.IDLE;
         return;
     }
@@ -436,11 +455,9 @@ export class TbskModem extends Disposable
             throw new TbskException();
         }
         let _t=this;
-        let packet_accepted=false;
         _t._status=TbskModem.ST.RX_RUNNING;
         _t._current_rx=_t._listener.start(
             ()=>{
-                packet_accepted=true;
                 Promise.resolve().then(
                     onSignal
                 );
