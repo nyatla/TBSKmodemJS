@@ -11,7 +11,7 @@ import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
-import {DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
+import {PromiseTask,DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
 
 
 
@@ -128,22 +128,23 @@ class Workflow
             let ra = [];
             for (; ;) {
                 try {
-                    for (; ;) {
-                        //stopリゾルバが設定されておるぞ。
-                        if(_t._kill_request){
-                            console.log("Kill accepted!");
-                            throw new StopIteration();//強制的に確定
-                        }
-                        let w = out_buf.next();
-                        ra.push(w);
+                    //stopリゾルバが設定されておるぞ。
+                    if(_t._kill_request){
+                        console.log("Kill accepted!");
+                        throw new StopIteration();//強制的に確定
                     }
+                    let w = out_buf.next();
+                    ra.push(w);
+                    continue;
                 } catch (e) {
-                    if (e instanceof RecoverableStopIteration) {
-                        //                            console.log("RecoverableStopIteration");
+                    if(!(e instanceof StopIteration)){
+                        //stopIteration以外はおかしい。
+                        console.error(e);
+                        throw e;
+                    }else{
                         if (ra.length > 0) {
                             //ここでdataイベント
                             console.log("data:");
-                            //                                console.log(ra);
                             if (decoder) {
                                 let rd = decoder.put(ra);
                                 if (rd) {
@@ -154,27 +155,12 @@ class Workflow
                             }
                             ra = [];
                         }
-                        yield;
-                        continue;
-                    } else if (e instanceof StopIteration) {
-                        if (ra.length > 0) {
-                            //console.log("StopIteration");
-                            console.log("data:");
-                            //console.log(ra);
-                            if (decoder) {
-                                let rd = decoder.put(ra);
-                                if (rd) {
-                                    handler.onData(rd);//callOnData(rd);
-                                }
-                            } else {
-                                handler.onData(ra);//callOnData(ra);
-                            }
-                            ra = [];
+                        if (e instanceof RecoverableStopIteration) {
+                            yield;
+                            continue;
                         }
                         console.log("Signal lost!");
                         handler.onEnd();//callOnEnd();
-                    }else{
-                        console.log(e);
                     }
                     //ここではStopイテレーションの区別がつかないから、次のシグナル検出で判断する。
                 }
@@ -266,6 +252,8 @@ class TbskListener2 extends Disposable
 }
 
 
+
+
 /**
  * TBSK変調信号の送受信機能を統合したモデムクラスです。
  */
@@ -274,12 +262,12 @@ export class TbskModem extends Disposable
     static ST={
         CLOSED:0,   //利用不能な状態
         OPENING:1,  //OPENを実行した
-        CLOSING:1,
-        IDLE:2,
-        TX_RUNNING: 3,
-        TX_BREAKING:4,
-        RX_RUNNING: 5,
-        RX_BREAKING:6
+        CLOSING:2,
+        IDLE:3,
+        TX_RUNNING: 4,
+        TX_BREAKING:5,
+        RX_RUNNING: 6,
+        RX_BREAKING:7
     };
     /**
      * インスタンスの状態を返します。
@@ -297,7 +285,7 @@ export class TbskModem extends Disposable
     {
         super();
         this._status=TbskModem.ST.CLOSED;
-        this._current_rx=undefined;
+        this._rx_task=undefined;
         this._current_tx=undefined;
         this._tx_break_promise=undefined;
         /** @type {AudioInput} */
@@ -389,23 +377,30 @@ export class TbskModem extends Disposable
         buf.getChannelData(0).set(f32_array);
 
         let _t=this;
-        class Player extends AudioPlayer{
-            constructor(actx,buf){super(actx,buf);}
-            play(){
-                return super.play()
-                .then(()=>{return new Promise((resolve)=>{setTimeout(resolve,30)})});
+
+        class PlayerTask extends PromiseTask{
+            constructor(actx,buf){
+                super();
+                this._player=new AudioPlayer(actx,buf);
             }
-            stop(){
-                return super.stop()
-                .then(()=>{return new Promise((resolve)=>{setTimeout(resolve,30)})});
+            async run(){
+                return super.run(
+                    this._player.play().then(
+                        ()=>{return new Promise((resolve)=>{setTimeout(resolve,30)})}
+                    )
+                );
+            }
+            async join(){
+                if(this._player.isPlaying){
+                    this._player.stop();
+                }
+                return super.join();
             }
         }
-        let player=new Player(actx,buf);
-
-        let pp=player.play();
-        this._current_tx=player;
+        let task=new PlayerTask(actx,buf);
         this._status=TbskModem.ST.TX_RUNNING;
-        await pp;
+        this._current_tx=task;
+        await task.run();
         _t._audio_input.clear();
         _t._status=TbskModem.ST.IDLE;
         return;
@@ -419,18 +414,19 @@ export class TbskModem extends Disposable
     async txBreak()
     {
         let _t=this;
+        console.log("IN",_t._status);
         switch(_t._status)
         {
         case TbskModem.ST.IDLE:
             return;
         case TbskModem.ST.TX_RUNNING:
             _t._status=TbskModem.ST.TX_BREAKING;
-            _t._tx_break_promise=_t._current_tx?.stop();
-            //@ts-ignore
-            await _t._tx_break_promise;
+            console.log("IN1",_t._status);
+            await this._current_tx?.join();
+            console.log("IN2",_t._status);
             return;
         case TbskModem.ST.TX_BREAKING:
-            await _t._tx_break_promise;
+            await this._current_tx?.join();
             return;
         default:
             throw new TbskException();
@@ -456,22 +452,22 @@ export class TbskModem extends Disposable
         }
         let _t=this;
         _t._status=TbskModem.ST.RX_RUNNING;
-        _t._current_rx=_t._listener.start(
-            ()=>{
-                Promise.resolve().then(
-                    onSignal
-                );
-            },
-            (d)=>{
-                Promise.resolve().then(()=>{
+  
+        let task=new PromiseTask();
+        this._rx_task=task;
+        await task.run(
+            _t._listener.start(
+                ()=>{
+                    onSignal();
+                },
+                (d)=>{
                     onData(d);
-                })
-            },
-            ()=>{
-                Promise.resolve().then(onSignalLost);
-            },
+                },
+                ()=>{
+                    onSignalLost();
+                },
+            )
         );
-        await _t._current_rx;
         _t._status=TbskModem.ST.IDLE;
         return true;
     }
@@ -490,7 +486,13 @@ export class TbskModem extends Disposable
             this._status=TbskModem.ST.RX_BREAKING;
             //@ts-ignore
             await this._listener.stop();
-            await this._current_rx;
+            //@ts-ignore
+            await this._rx_task.join();
+            console.log("RXB",this._status);
+            return;
+        case TbskModem.ST.RX_BREAKING:
+            //@ts-ignore
+            await this._rx_task.join();
             return;
         default:
             throw new TbskException();

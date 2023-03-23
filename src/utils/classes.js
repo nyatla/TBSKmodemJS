@@ -1,4 +1,5 @@
 // @ts-check
+import {TBSK_ASSERT} from "./functions"
 import {StopIteration} from "../tbskclasses/StopIteration"
 import {RecoverableStopIteration} from "../tbskclasses/RecoverableStopIteration"
 export class TbskException extends Error {
@@ -46,6 +47,47 @@ export class PromiseTaskQ{
     }
     isIdle(){
         return !this._run;
+    }
+}
+
+
+/**
+ * タスク終了時待ち合わせをするためのjoinメソッドを持つタスク管理クラス。
+ * 
+ */
+export class PromiseTask
+{            
+    constructor()
+    {
+        this._resolvers=[];
+        this._st=0;
+    }
+    /**
+     * 
+     * @param {*} promise 
+     */
+    async run(promise){
+        TBSK_ASSERT(this._st==0);
+        this._st=1;
+        await promise;
+        this._st=2;
+        for(let i of this._resolvers){
+            i();
+        }
+    }
+    async join(){
+        let _t=this;
+        switch(this._st){
+        case 0:
+        case 1:
+            //待機キューに積む
+            await new Promise((resolve)=>{_t._resolvers.push(resolve);});
+            break;
+        case 2:
+        default:
+            //何もしません
+            break;
+        }
     }
 }
 

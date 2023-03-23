@@ -27,21 +27,17 @@ export class AudioPlayer
 		src.connect(_t._actx.destination);
 		/** @type  {AudioBufferSourceNode}*/
 		_t._src=src;
-		_t._play_promise=undefined;
+		/** @type {any} */
+		_t._stop_resolver=undefined;
 		_t._status=AudioPlayer.ST.IDLE;
 	}
-	/**
-	 * 再生が完了するとtrue
-	 * @returns {boolean}
-	 */
-	get isFinised(){
-		return this._status==AudioPlayer.ST.END;
+	get isPlaying(){
+		return this._status==AudioPlayer.ST.PLAYING;
 	}
 	/**
 	 * @async
 	 * コンテンツを再生します。
-	 * @returns {Promise<boolean>}
-	 * 再生が完了するとresolveします。
+	 * @returns {Promise<void>}
 	 */
 	async play()
     {
@@ -51,20 +47,23 @@ export class AudioPlayer
 		}
 		_t._src.start();
 		_t._status=AudioPlayer.ST.PLAYING;
-		_t.play_promise= new Promise((resolve) =>
-		{
-            _t._src.onended=()=>{
+		let p=new Promise((resolve)=>{
+			_t._src.onended=()=>{
 				resolve(true);
 				_t._status=AudioPlayer.ST.END;
 			};
-		})
-		return await _t.play_promise;
+		});
+		//設定されてたらstop resolverを呼ぶ
+		p.then(()=>{if(_t._stop_resolver){_t._stop_resolver(true);}})
+
+		return p;
 	}
 	/**
 	 * @async
-	 * 再生中であれば停止します。
-	 * @returns {Promise<boolean>}
+	 * 再生中であれば停止します。この関数は、isPlayingがtrueの時だけ呼び出すことができます。
+	 * @returns {Promise<void>}
 	 * 停止状態になるとresolveします。
+	 * play関数が完了した次のタイミングで帰ります。
 	 */
 	async stop()
     {
@@ -73,11 +72,12 @@ export class AudioPlayer
 		case AudioPlayer.ST.PLAYING:
 			this._src.stop();
 			_t._status=AudioPlayer.ST.STOPWAIT;
-			return await _t.play_promise;
+			await new Promise((resolve)=>{_t._stop_resolver=resolve;});
+			return;
 		case AudioPlayer.ST.STOPWAIT:
-			return await _t.play_promise;
+			throw new TbskException();
 		case AudioPlayer.ST.END:
-			return true;
+			return;
 		default:
 			throw new TbskException();
 		}

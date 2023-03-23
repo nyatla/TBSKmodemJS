@@ -18,7 +18,7 @@ export class EasyChat
     constructor(mod,modem=undefined,carrier=16000)
     {
         this._carrier=carrier;
-        this._modem=new TbskModem(mod);
+        this._modem=modem?modem:new TbskModem(mod);
         this._recv_suspend=false;
         this._suspend_resolver=undefined;
         this._recv_count=undefined;
@@ -63,20 +63,24 @@ export class EasyChat
             case TbskModem.ST.TX_RUNNING:
             case TbskModem.ST.TX_BREAKING:
                 await modem.txBreak();
+                console.log("tx.done",modem.status);
                 break;
             case TbskModem.ST.RX_RUNNING:
                 //rx実行中ならサスペンドフラグをセットしてrxの停止を待つ
                 this._recv_suspend=true;                            
                 await modem.rxBreak();
+                console.log("rx.done",modem.status);
                 break;
             case TbskModem.ST.RX_BREAKING:
                 await modem.rxBreak();
+                console.log("rx2.done",modem.status);
                 break;
             case TbskModem.ST.IDLE:
                 break;
             default:
-                throw new TbskException();
+                throw new TbskException("Invalid modem status:"+modem.status);
         }
+        console.log(modem.status);
         await modem.tx(v,stop_symbol);
         //サスペンドリゾルバがセットされてたら解除する。
         if(this._suspend_resolver){
@@ -108,7 +112,7 @@ export class EasyChat
      * @async
      * @param {number|undefined} count
      * 連続して受信するパケットの数です。
-     * @param {{onStart:()=>void,onSignal:()=>void,onUpdate:(d:String|Number)=>void,onSignalLost:()=>void,onEnd:()=>void}} events
+     * @param {{onStart:()=>void,onSignal:()=>void,onUpdate:(d:String|Number)=>void|false,onSignalLost:()=>void,onEnd:()=>void}} events
      * イベントハンドラのセットです。
      * onStartとonEndイベントはセットです。onStartが呼び出されると、onEndは必ず呼び出されます。
      * onStartは受信処理の開始を通知します。onEndは処理の終わりを通知します。
@@ -148,8 +152,11 @@ export class EasyChat
                 while(true){
                     await this._modem.rx(
                         ()=>{
-                            onSignal();},
-                        (d)=>{onUpdate(d)},
+                            onSignal();
+                        },
+                        (d)=>{
+                            onUpdate(d)
+                        },
                         ()=>{
                             onSignalLost();
                         },
