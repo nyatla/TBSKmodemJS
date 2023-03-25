@@ -63,7 +63,8 @@ export class PromiseTask
         this._st=0;
     }
     /**
-     * 
+     * @async
+     * Promiseを実行する。awaitで完了するまで待つ.
      * @param {*} promise 
      */
     async run(promise){
@@ -75,6 +76,9 @@ export class PromiseTask
             i();
         }
     }
+    /**
+     * runが完了する迄awaitする。
+     */
     async join(){
         let _t=this;
         switch(this._st){
@@ -88,6 +92,34 @@ export class PromiseTask
             //何もしません
             break;
         }
+    }
+}
+/**
+ * wait関数で待機すると、releaseが実行されるまでブロックするインスタンス。
+ */
+export class PromiseLock{
+    constructor(){
+        let _t=this;
+        _t._resolver=undefined;
+        _t._p=new Promise((resolve)=>{_t._resolver=resolve})
+    }
+    /**
+     * releaseが呼ばれるまで待機する。
+     * 複数回呼び出し多場合、全てのプロセスをブロックします。
+     */
+    async wait()
+    {
+        if(this._p){
+            await this._p;
+            //@ts-ignore
+            this._p=undefined;
+        }
+    }
+    /**
+     * waitのasync待機を解除する。
+     */
+    release(){
+        this._resolver();
     }
 }
 

@@ -6,6 +6,8 @@ import {AudioInput} from "./audio/AudioInput"
 import {AudioPlayer} from "./audio/AudioPlayer"
 import { Buffer } from 'buffer';
 import { TbskModem } from "./tbskclasses/TbskModem";
+import { TbskTransmitter } from "./tbskclasses/TbskTransmitter";
+import { TbskReceiver } from "./tbskclasses/TbskReceiver";
 import { TbskModulator } from "./tbskclasses/TbskModulator";
 import { TbskDemodulator } from "./tbskclasses/TbskDemodulator";
 import { TbskListener } from "./tbskclasses/TbskListener";
@@ -146,6 +148,35 @@ export class TBSKmodemJS
                 super(...[wasm].concat([tone,preamble_cycle]));
             }
         };
+        /** @class {TbskTransmitter}*/
+        this.TbskTransmitter=class extends TbskTransmitter
+        {
+            /**
+             * @param {AudioContext} actx 
+             * @param {TraitTone} tone
+             * @param {Number|undefined} preamble_cycle 
+             */
+            constructor(actx,tone,preamble_cycle=undefined)
+            {
+                super(...[wasm].concat([actx,tone,preamble_cycle]));
+            }
+
+        }
+        /** @class {TbskReceiver}*/
+        this.TbskReceiver=class extends TbskReceiver
+        {
+            /**
+             * @param {TraitTone} tone
+             * @param {Number|undefined} preamble_cycle 
+             */
+            constructor(tone,preamble_cycle=undefined,decoder=undefined)
+            {
+                super(...[wasm].concat([tone,preamble_cycle,decoder]));
+            }
+
+        }
+
+        
         /** @class {@link TbskListener}*/
         this.TbskListener=class extends TbskListener
         {

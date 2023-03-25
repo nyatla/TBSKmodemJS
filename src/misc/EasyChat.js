@@ -1,13 +1,26 @@
 // @ts-check
 
 import { TbskModem } from "../tbskclasses/TbskModem.js";
-import { TbskException } from "../utils/classes";
+import { PromiseTask, TbskException } from "../utils/classes";
+import { TBSK_ASSERT } from "../utils/functions.js";
 
+
+const ST={
+    CLOSED  :0, //閉じている
+    OPENNING:1, //OPENが実行中
+    CLOSING :2, //CLOSEを実行中
+    IDLE    :3, //何も実行していない
+    SENDING :4,                 //TX実行中
+    SEND_SUSPEND_RECV:5,    //TX実行中。
+    SENDING_RX_STOP:7,  //送信ためにRXの停止要求中
+    RECV:6,
+};
 /**
  * 簡易的な半二重通信チャットインタフェイスです。
  */
-export class EasyChat
+export class EasyChat extends EventTarget
 {
+    static ST=ST;
     /**
      * @param {any} mod
      * @param {TbskModem|undefined} modem
@@ -17,33 +30,108 @@ export class EasyChat
      */
     constructor(mod,modem=undefined,carrier=16000)
     {
-        this._carrier=carrier;
-        this._modem=modem?modem:new TbskModem(mod);
-        this._recv_suspend=false;
-        this._suspend_resolver=undefined;
-        this._recv_count=undefined;
+        super();
+        let _t=this;
+        _t._callOnOpen=()=>
+        {
+            _t.dispatchEvent(new CustomEvent("open"));
+        };
+        _t._callOnClose= ()=>{
 
-        
+        };
+        _t._callOnPacket=(d)=>
+        {
+            _t.dispatchEvent(new CustomEvent("message",d));
+        };
+        _t._callOnSignal=()=>{
+
+        };
+        _t._callOnUpdate=(d)=>{
+
+        };
+        _t._callOnSignalLost=()=>{
+
+        };
+        _t._status=ST.CLOSED;
+        _t._carrier=carrier;
+        _t._modem=modem?modem:new TbskModem(mod);
+        _t._send_current=undefined;
+        _t._rx_resume_resolver=undefined;
     }
+
     /**
-     * @async
      * 回線を開きます。
+     * @returns {boolean}
+     * Trueの場合、openがコールされます。
      * @throws
      * ステータス以上の場合
      */
-    async open()
+    open()
     {
-        await this._modem.open(this._carrier);                    
+        let _t=this;
+        if(this._status!=ST.CLOSED){
+            return false;
+        }
+        _t._status=ST.OPENNING;
+        this._modem.open(this._carrier).then(
+            ()=>{
+                _t._status=ST.IDLE;
+                _t._callOnOpen();
+                //受信系のセットアップ
+                function ploop(){
+                    _t._modem.rx(
+                        ()=>{
+                            _t._callOnSignal();
+                        },
+                        (d)=>{
+                            _t._callOnUpdate(d);
+                        },
+                        ()=>{
+                            _t._callOnSignalLost();
+                        },
+                    ).then(()=>{
+                        switch(_t._status){
+                        case ST.SENDING_RX_STOP:
+                            new Promise((resolver)=>{_t._rx_resume_resolver=resolver;}).then(()=>{ploop()});
+                        }
+                    });
+                }
+                ploop();//受信ループ
+            }
+        );
+        return true;
     };
 
     /**
      * 回線を閉じます。
      */
-    async close()
+    close()
     {
-        await this.sendBreak();
-        await this.recvBreak();
-        await this._modem.close();
+        let _t=this;
+        switch(_t._status){
+        case ST.IDLE:
+            _t._status=ST.CLOSING;
+            //Go Promise
+            this._modem.close().then(
+                ()=>{
+                    _t._status=ST.IDLE;
+                    _t._callOnClose();
+                }
+            );
+            return true;
+        case ST.OPENNING:
+            //OPENNINGなら、openが終わった後にcloseする。
+            _t._status=ST.CLOSING;
+            this.addEventListener("open",()=>{
+                Promise.resolve().then(()=>{_t.close();});
+            });
+            return;
+        case ST.CLOSING:
+        case ST.CLOSED:
+            return false;
+        default:
+            throw new TbskException("Invalid status:"+_t._status);    
+        }
     };
     /**
      * 音声入力のRMS値を返します。
@@ -51,163 +139,74 @@ export class EasyChat
     get rms(){return this._modem.rms;};
     /**
      * @async
-     * データを送信します。rxを実行中の場合は、現在の受信を一時中断してから送信します。
-     * 受信中のパケットがある場合は受信を中断します。
+     * データを送信します。
+     * 既に送信中のデータがある場合は、中断してから送信します。
      * @param {Int8Array|String} v 
      */
-    async send(v,stop_symbol=true)
+    send(v,stop_symbol=true)
     {
+        let _t=this;
         let modem=this._modem;
-        
-        switch(modem.status){
-            case TbskModem.ST.TX_RUNNING:
-            case TbskModem.ST.TX_BREAKING:
-                await modem.txBreak();
-                console.log("tx.done",modem.status);
-                break;
-            case TbskModem.ST.RX_RUNNING:
-                //rx実行中ならサスペンドフラグをセットしてrxの停止を待つ
-                this._recv_suspend=true;                            
-                await modem.rxBreak();
-                console.log("rx.done",modem.status);
-                break;
-            case TbskModem.ST.RX_BREAKING:
-                await modem.rxBreak();
-                console.log("rx2.done",modem.status);
-                break;
-            case TbskModem.ST.IDLE:
-                break;
-            default:
-                throw new TbskException("Invalid modem status:"+modem.status);
+        switch(this._status){
+        case ST.CLOSING:
+        case ST.CLOSED:
+        case ST.OPENNING:
+            return false;
+        case ST.IDLE:
+            //Go Promise
+            function chain(v,stop_symbol){
+                modem.tx(v,stop_symbol).then(
+                    ()=>{
+                        let c=_t._send_current;
+                        _t._send_current=undefined;
+                        if(c){
+                            chain(c[0],c[1]);
+                        }else{
+                            _t._status=ST.RX_RESUME;
+                            //rxのレジーム
+                            TBSK_ASSERT(_t._rx_resume_resolver);
+                            _t._rx_resume_resolver();//RXの再開
+                        }
+                    }
+                );
+            }
+            _t._status=ST.SENDING_RX_STOP;
+            //rxを停止
+            modem.rxBreak().then(
+                ()=>{
+                    _t._status=ST.SENDING;
+                    chain(v,stop_symbol);
+                }
+            )
+            return true;
+        case ST.SENDING_RX_STOP:
+            return true;
+        case ST.SENDING:
+            _t._send_current=[v,stop_symbol];//待機を上書き
+            modem.txBreak();//多重呼び出し時しでも現在のtxに対してbreakするはず。
+            return true;
+        default:
+            throw new TbskException("Invalid status:"+_t._status);
         }
-        console.log(modem.status);
-        await modem.tx(v,stop_symbol);
-        //サスペンドリゾルバがセットされてたら解除する。
-        if(this._suspend_resolver){
-            this._suspend_resolver();
-            this._suspend_resolver=undefined;
-        }
-        return true;
     };
     /**
      * 送信処理を中断します。
      * @returns 
      */
-    async sendBreak()
+    sendBreak()
     {
         let modem=this._modem;
-        switch(modem.status){
-            case TbskModem.ST.TX_RUNNING:
-            case TbskModem.ST.TX_BREAKING:
-                await modem.txBreak();
-//                            console.log("#/c");
-                return true;
-            default:
-                return false;
+        switch(this._status){
+        case ST.CLOSING:
+        case ST.CLOSED:
+        case ST.OPENNING:
+            return false;
+        case ST.IDLE:
+            return true;            
+        case ST.SENDING:
+            this._send_current=undefined;//送信予約を削除
+            modem.txBreak();
+            return;
         }
     }
-    /**
-     * パケットを受信します。パケットの解析ステージ毎にコールバックイベントが呼び出されます。
-     * 関数はrecvBreakを呼び出すか、count個のパケットを受信するまで継続します。
-     * @async
-     * @param {number|undefined} count
-     * 連続して受信するパケットの数です。
-     * @param {{onStart:()=>void,onSignal:()=>void,onUpdate:(d:String|Number)=>void|false,onSignalLost:()=>void,onEnd:()=>void}} events
-     * イベントハンドラのセットです。
-     * onStartとonEndイベントはセットです。onStartが呼び出されると、onEndは必ず呼び出されます。
-     * onStartは受信処理の開始を通知します。onEndは処理の終わりを通知します。
-     * onSignal,OnUpdate,onSignalLostイベントはセットです。onSignalが呼び出されると、onUpdateが0回以上呼び出された後にonSignalLostイベントが呼び出されます。
-     * 
-     * @returns 
-     */
-    async recv(events,count=undefined)
-    {
-        let _t=this;
-        let modem=this._modem;
-        //状態の初期化
-        if(!modem.rxReady){
-            switch(modem.status){
-                case TbskModem.ST.RX_RUNNING:
-                case TbskModem.ST.RX_BREAKING:
-                    await modem.rxBreak();
-                    break;
-                case TbskModem.ST.TX_RUNNING:
-                case TbskModem.ST.TX_BREAKING:
-                    await modem.txBreak();
-                    break;
-                case TbskModem.ST.IDLE:
-                    break;
-                default:
-                    return false;
-            }    
-        }
-        let onStart="onStart" in events?events.onStart:()=>{};
-        let onSignal="onSignal" in events?events.onSignal:()=>{};
-        let onUpdate="onUpdate" in events?events.onUpdate:()=>{};
-        let onSignalLost="onSignalLost" in events?events.onSignalLost:()=>{};
-        let onEnd="onEnd" in events?events.onEnd:()=>{};
-        this._recv_count=count;
-        await Promise.resolve().then(onStart);
-            try{
-                while(true){
-                    await this._modem.rx(
-                        ()=>{
-                            onSignal();
-                        },
-                        (d)=>{
-                            onUpdate(d)
-                        },
-                        ()=>{
-                            onSignalLost();
-                        },
-                    );
-                    //サスペンド要求が来ているならサスペンド解除のリゾルバをセット
-                    if(this._recv_suspend){
-                        this._recv_suspend=false;
-                        await new Promise((resolve)=>{_t._suspend_resolver=resolve;});
-                        //ここで想定される状態は,TbskModem.ST.IDLE
-                        console.log("suspend_reboot",modem.status,this._recv_count);
-                    }
-                    if(this._recv_count===undefined){
-                        continue;
-                    }else if(this._recv_count>1){
-                        this._recv_count--;
-                        console.log(this._recv_count);
-                        continue;
-                    }
-                    break;
-                }
-
-            }finally{
-                await Promise.resolve().then(onEnd);
-            }   
-        return;
-    };
-    /**
-     * 受信処理を中断します。
-     * @returns 
-     */
-    async recvBreak()
-    {
-        let modem=this._modem;
-        if(this._recv_suspend){
-            this._recv_suspend=false;//サスペンド要求があれば無効にする
-        }else if(this._suspend_resolver){
-//                        console.log("#b1");
-            this._suspend_resolver();//リゾルバがあれば解除しておく。
-//                        console.log("#b2");
-            this._suspend_resolver=undefined;
-        }
-        this._recv_count=0;
-        switch(modem.status){
-            case TbskModem.ST.RX_RUNNING:
-            case TbskModem.ST.RX_BREAKING:
-//                            console.log("#a");
-                await modem.rxBreak();
-//                            console.log("#/a");
-                return true;
-            default:
-                return false;
-        }
-    }                
 }
