@@ -92,11 +92,13 @@ export class TBSKmodemJS
             EasyChat:class extends EasyChat{
                 /**
                  * {@link EasyChat}クラスのエイリアスです。
-                 * @param {TbskModem} modem 
-                 * @param {number} carrier 
-                 */ 
-                constructor(modem=undefined,carrier=16000) {
-                    super(...[wasm].concat(arguments));
+                 * @param {TraitTone|undefined} tone
+                 * ラップするモデムインスタンス.省略時はデフォルトモデムを生成。
+                 * @param {Number|undefined} preamble_cycle
+                 * プリアンブルの数 
+                 */
+                constructor(tone=undefined,preamble_cycle=undefined){
+                    super(...[wasm].concat([tone,preamble_cycle]));
                 }
             }
         };
@@ -152,13 +154,12 @@ export class TBSKmodemJS
         this.TbskTransmitter=class extends TbskTransmitter
         {
             /**
-             * @param {AudioContext} actx 
              * @param {TraitTone} tone
              * @param {Number|undefined} preamble_cycle 
              */
-            constructor(actx,tone,preamble_cycle=undefined)
+            constructor(tone,preamble_cycle=undefined)
             {
-                super(...[wasm].concat([actx,tone,preamble_cycle]));
+                super(...[wasm].concat([tone,preamble_cycle]));
             }
 
         }

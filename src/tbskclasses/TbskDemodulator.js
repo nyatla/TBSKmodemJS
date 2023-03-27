@@ -1,5 +1,6 @@
 import {WasmProxy,IntOutputIterator,DoubleInputIterator} from "../utils/classes.js"
 import {PassDecoder,Utf8Decoder} from "../utils/decoder.js"
+import { TBSK_ASSERT } from "../utils/functions.js";
 import { TraitTone } from "./TbskTone.js";
 
 //@ts-check
@@ -90,6 +91,10 @@ class DemodulateResult extends WasmProxy {
     getOutput() {
         return new IntOutputIterator(this._mod,this._mod._wasm_tbskmodem_TbskDemodulator_DemodulateResult_GetOutput(this._wasm_instance));
     }
+    /**
+     * インスタンスがrecoverableならリカバリ結果を返す。
+     * @returns 
+     */
     getRecover() {
         const mod=this._mod;
         let wi = mod._wasm_tbskmodem_TbskDemodulator_DemodulateResult_Recover(this._wasm_instance);

@@ -2,6 +2,7 @@
 
 import { TbskException } from "../utils/classes";
 import { TBSK_ASSERT } from "../utils/functions";
+import { PromiseLock } from "../utils/promiseutils";
 
 /**
  * Audioバッファを一度だけ再生するプレイヤーです。
@@ -42,21 +43,31 @@ export class AudioPlayer
 	async play()
     {
 		let _t=this;
-		if(this._status!=AudioPlayer.ST.IDLE){
+		const ST=AudioPlayer.ST;
+
+		if(this._status!=ST.IDLE){
 			throw new TbskException();
 		}
+		_t._status=ST.PLAYING;
+		_t._play_lock=new PromiseLock();
 		_t._src.start();
-		_t._status=AudioPlayer.ST.PLAYING;
-		let p=new Promise((resolve)=>{
-			_t._src.onended=()=>{
-				resolve(true);
-				_t._status=AudioPlayer.ST.END;
-			};
+		_t._actx.addEventListener("statechange",()=>{
+			if(_t._actx.state!="running" && _t._status!=ST.END){
+				_t._play_lock?.release();
+				_t._status=ST.END;
+			}
 		});
-		//設定されてたらstop resolverを呼ぶ
-		p.then(()=>{if(_t._stop_resolver){_t._stop_resolver(true);}})
-
-		return p;
+		_t._src.addEventListener("ended",()=>{
+			if(_t._status!=ST.END){
+				_t._play_lock?.release();
+				_t._status=ST.END;
+			}
+		});
+		//console.log("PLAY1",this._status);
+		await _t._play_lock?.wait();
+		//console.log("PLAY2",this._status);
+		TBSK_ASSERT(_t._status==ST.END);
+		return;
 	}
 	/**
 	 * @async
@@ -67,16 +78,18 @@ export class AudioPlayer
 	 */
 	async stop()
     {
+		const ST=AudioPlayer.ST;
 		let _t=this;
 		switch(_t._status){
-		case AudioPlayer.ST.PLAYING:
+		case ST.PLAYING:
 			this._src.stop();
-			_t._status=AudioPlayer.ST.STOPWAIT;
-			await new Promise((resolve)=>{_t._stop_resolver=resolve;});
+			_t._status=ST.STOPWAIT;
+			await _t._play_lock?.wait();
 			return;
-		case AudioPlayer.ST.STOPWAIT:
+		case ST.STOPWAIT:
+			await _t._play_lock?.wait();
 			throw new TbskException();
-		case AudioPlayer.ST.END:
+		case ST.END:
 			return;
 		default:
 			throw new TbskException();

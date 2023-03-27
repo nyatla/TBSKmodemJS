@@ -1,5 +1,5 @@
 // @ts-check
-import {TBSK_ASSERT} from "./functions"
+
 import {StopIteration} from "../tbskclasses/StopIteration"
 import {RecoverableStopIteration} from "../tbskclasses/RecoverableStopIteration"
 export class TbskException extends Error {
@@ -10,118 +10,6 @@ export class TbskException extends Error {
     }
 }
 
-export class PromiseTaskQ{
-    constructor(){
-        this._q=[];
-        this._run=false;
-    }
-    push(f){
-        if(!f){
-            return;
-        }
-        let _t=this;
-        _t._q.push(f);
-        function kick(){
-            let p=Promise.resolve();
-            _t._run=true;
-            p.then(()=>{
-                try{
-                    let f=_t._q[0];
-                    _t._q.shift();
-                    f();
-                }finally{
-                    if(_t._q.length>0){
-                        return kick();
-                    }else{
-                        _t._run=false;
-                    }
-                }
-            });
-            return p;
-        }
-        //1個めならキック
-        if(!_t._run){
-        		console.log("kick");
-            kick();
-        }
-    }
-    isIdle(){
-        return !this._run;
-    }
-}
-
-
-/**
- * タスク終了時待ち合わせをするためのjoinメソッドを持つタスク管理クラス。
- * 
- */
-export class PromiseTask
-{            
-    constructor()
-    {
-        this._resolvers=[];
-        this._st=0;
-    }
-    /**
-     * @async
-     * Promiseを実行する。awaitで完了するまで待つ.
-     * @param {*} promise 
-     */
-    async run(promise){
-        TBSK_ASSERT(this._st==0);
-        this._st=1;
-        await promise;
-        this._st=2;
-        for(let i of this._resolvers){
-            i();
-        }
-    }
-    /**
-     * runが完了する迄awaitする。
-     */
-    async join(){
-        let _t=this;
-        switch(this._st){
-        case 0:
-        case 1:
-            //待機キューに積む
-            await new Promise((resolve)=>{_t._resolvers.push(resolve);});
-            break;
-        case 2:
-        default:
-            //何もしません
-            break;
-        }
-    }
-}
-/**
- * wait関数で待機すると、releaseが実行されるまでブロックするインスタンス。
- */
-export class PromiseLock{
-    constructor(){
-        let _t=this;
-        _t._resolver=undefined;
-        _t._p=new Promise((resolve)=>{_t._resolver=resolve})
-    }
-    /**
-     * releaseが呼ばれるまで待機する。
-     * 複数回呼び出し多場合、全てのプロセスをブロックします。
-     */
-    async wait()
-    {
-        if(this._p){
-            await this._p;
-            //@ts-ignore
-            this._p=undefined;
-        }
-    }
-    /**
-     * waitのasync待機を解除する。
-     */
-    release(){
-        this._resolver();
-    }
-}
 
 
 export class Disposable {

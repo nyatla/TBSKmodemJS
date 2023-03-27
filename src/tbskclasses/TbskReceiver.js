@@ -1,7 +1,7 @@
 //@ts-check
 
 import { AudioInput } from "../audio/AudioInput.js";
-import {TBSK_ASSERT} from "../utils/functions"
+import {sleep, TBSK_ASSERT} from "../utils/functions"
 
 import { TraitTone} from "./TbskTone.js";
 
@@ -9,264 +9,234 @@ import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
-import {PromiseTask,DoubleInputIterator,Disposable, TbskException, PromiseLock} from "../utils/classes.js"
-
+import {DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
+import {PromiseSequenceRunner,PromiseThread, PromiseLock} from "../utils/promiseutils"
 
 
 
 /**
  * パケット受信１回分のワークフローです。
+ * 外部保持されているインスタンスを操作して、TBSKパケットの受信処理を非同期関数化します。
+ * 
+ * 必ずdetect->read->closeの順番で呼び出してください。
  */
-class Workflow
+class PacketProcessor
 {
+    static ST={
+        WAIT_FOR_DETECT:0,
+        DETECTING:1,
+        READING:2,
+        CLOSED:3
+    }
     /**
      * 
-     * @param {*} demod 
+     * @param {*} demod
+     * 初期状態のdemodulationインスタンス
      * @param {*} input_buf 
-     * @param {*} decoder 
-     * @param {onStart,onData(d),onEnd} handler 
+     * 初期状態の入力バッファ
      */
      
-    constructor(demod,input_buf,decoder,handler){
-        let _t=this;
-        _t._input_buf=input_buf;
-        _t._kill_request=false;
-        _t._gen=undefined;
-        //このワークフローのPromise
-        _t.th_promise=new Promise((resolve)=>{
-            /**@type {Generator|undefined} */
-            _t._gen=this.proc(demod,input_buf,decoder,handler,resolve);
-        }).then(()=>{
-            _t._gen=undefined;
-        });
-    }
-    /**
-     * 処理を進めます。
-     * @param {*} src 
-     * @returns 
-     */
-    next(src){
-        this._input_buf.puts(src);
-        //@ts-ignore
-        return this._gen.next();
-    }
-    /**
-     * 二重呼び出しをしないでね。
-     */
-    kill(){
-        TBSK_ASSERT(this._kill_request==false);
-        this._kill_request=true;
-        this.next([0]);//ダミーさん
+    constructor(demod,input_buf)
+    {
+        let ST=PacketProcessor.ST;
+        this._kill_request=false;
+        this._out_buf=undefined;        
+        this._st=ST.WAIT_FOR_DETECT;
+        this._input_buf=input_buf;
+        this._demod=demod;
+        this._close_lock=new PromiseLock();
     }
     /**
      * @async
-     * ワークフローが完了するまで待ちます。
-     * @returns 
+     * パケットを検出します。
+     * @returns {Promise<boolean>}
+     * パケットを検出するとtrueです。引き続き、#read関数を使用して読出し操作ができます。
      */
-    async waitForEnd()
+    async detect()
     {
-        if(!this._gen){
-            return true;
-        }
-        await this.th_promise;
-        return true;
-    }
-
-    *proc(demod, input_buf,decoder,handler,resolver)
-    {
-        let _t=this;
-
-        decoder.reset();
+        const ST=PacketProcessor.ST;
+        let demod=this._demod;
+        let input_buf=this._input_buf;
         //console.log("workflow called!");
         let out_buf = null;
         let dresult = null;
+        TBSK_ASSERT(this._st==ST.WAIT_FOR_DETECT);
+        this._st=ST.DETECTING;
         dresult = demod._demodulateAsInt_B(input_buf);
         if (dresult == null) {
             //未検出でinputが終端
-            console.error("input err");
-            resolver();//ジェネレータが完了した通知
-            return;//done
+            this._st=ST.CLOSED;
+            this._close_lock.release();            
+            return false;//終端
         }
-        try
+        //dresultは必ず解放して
+        try{
+            switch (dresult.getType()) {
+            case 1://1 iter
+                out_buf = dresult.getOutput();
+                break;
+            case 2:// recover
+                let _t=this;
+                while(true){
+                    if(_t._kill_request){
+                        out_buf=null;//ERR
+                    }
+                    out_buf = dresult.getRecover();
+                    if (out_buf == null) {
+                        await sleep(30);//タスクスイッチ(高負荷だからresolverにしたいな。)
+                        continue;
+                    }
+                    break;
+                }
+                break
+            default:
+                //継続不能なエラー
+                this._st=ST.CLOSED;
+                this._close_lock.release();
+                console.error("unknown type.");
+                throw new Error();
+            }
+        }finally{
+            console.log("debug",dresult);
+            dresult.dispose();
+            dresult = null; 
+        }
+        //CLOSEDかREADINGに遷移
+        if(out_buf==null){
+            this._st=ST.CLOSED;
+            this._close_lock.release();            
+            return false;
+        }else{
+            console.log("Signal detected!");
+            this._st=ST.READING;
+            this._out_buf=out_buf;
+            return true;
+        }
+    }
+    /**
+     * 
+     * @returns {Promise<number[]|string|undefined>}
+     */
+    async read(decoder)
+    {   
+        const ST=PacketProcessor.ST;
+        let _t=this;
+        let ra = [];
+        function loop(out_buf)
         {
             try {
-                switch (dresult.getType()) {
-                    case 1://1 iter
-                        //                            console.log("signal detected");
-                        out_buf = dresult.getOutput();
-                        break;
-                    case 2:// recover
-                        for (; ;) {
-                            if(_t._kill_request){
-                                return;//done
-                            }
-                            //                                console.log("recover");
-                            out_buf = dresult.getRecover();
-                            if (out_buf != null) {
-                                break;
-                            }
-                            //リカバリ再要求があったので何もしない。
-                            yield;
-                        }
-                        break
-                    default:
-                        //継続不能なエラー
-                        console.error("unknown type.");
-                        throw new Error();
+                if(_t._kill_request){
+                    console.log("Kill accepted!");
+                    throw new StopIteration();//強制的に確定
                 }
-            } finally {
-                console.log("debug",dresult);
-                dresult.dispose();
-                dresult = null;
-            }
-            //outにイテレータが入っている。
-            console.log("Signal detected!");
-            handler.onStart();
-            //終端に達する迄取り出し
-            let ra = [];
-            for (; ;) {
-                try {
-                    //stopリゾルバが設定されておるぞ。
-                    if(_t._kill_request){
-                        console.log("Kill accepted!");
-                        throw new StopIteration();//強制的に確定
-                    }
+                while(true){
                     let w = out_buf.next();
                     ra.push(w);
-                    continue;
-                } catch (e) {
-                    if(!(e instanceof StopIteration)){
-                        //stopIteration以外はおかしい。
-                        console.error(e);
-                        throw e;
-                    }else{
-                        if (ra.length > 0) {
-                            //ここでdataイベント
-                            console.log("data:");
-                            if (decoder) {
-                                let rd = decoder.put(ra);
-                                if (rd) {
-                                    handler.onData(rd);//callOnData(rd);
-                                }
-                            } else {
-                                handler.onData(ra);//callOnData(ra);
-                            }
-                            ra = [];
-                        }
-                        if (e instanceof RecoverableStopIteration) {
-                            yield;
-                            continue;
-                        }
-                        console.log("Signal lost!");
-                        handler.onEnd();//callOnEnd();
-                    }
-                    //ここではStopイテレーションの区別がつかないから、次のシグナル検出で判断する。
                 }
-                out_buf.dispose();
-                out_buf = null;
-                return;//done
-            }
-        } finally {
-            if (out_buf) { out_buf.dispose(); }
-            if (dresult) { dresult.dispose(); }
-            resolver();//ジェネレータが完了した通知
-        }
-        //関数終了。
-        console.log("end of workflow");
-    }
-}
-
-
-class TbskListener2 extends Disposable
-{
-    /**
-     * 非同期にコールされるpushは、信号を検出するとonPacketでパケットハンドラを呼び出します。
-     * onPacketハンドラは新しいIPacketHandlerを継承したパケット処理クラスを呼び出してください。
-     * 
-     */
-    constructor(mod,tone, preamble_th=1.0,preamble_cycle=4,decoder = undefined) {
-        super();
-        this._decoder = decoder;
-        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle);
-        this._input_buf = new DoubleInputIterator(mod,true);
-        this._currentGenerator=undefined;
-    }
-    dispose()
-    {
-        if (this._currentGenerator) {
-            try {
-                this._currentGenerator._gen.throw(new Error('Brake workflow!'));
             } catch (e) {
+                if(!(e instanceof StopIteration)){
+                    //stopIteration以外はおかしい。
+                    console.error(e);
+                    throw e;
+                }else{
+                    if (ra.length > 0) {
+                        //ここでdataイベント
+                        console.log("data:");
+                        if (decoder) {
+                            let rd = decoder.put(ra);
+                            if (rd) {
+                                return rd;
+                            }
+                        } else {
+                            return ra;
+                        }
+                        ra=[];
+                    }
+                    if (e instanceof RecoverableStopIteration) {
+                        return false;//
+                    }
+                }
             }
+            return null;
         }
-        this._demod.dispose();
-        this._input_buf.dispose();
+        TBSK_ASSERT(this._st==ST.READING);
+        let out_buf=this._out_buf;
+        let ret;
+        while(true){
+            ret=loop(out_buf);//awaitLoopなので負荷率高いよ。
+            if(ret===false){
+                await sleep(30);//タスクスイッチ(高負荷だからresolverにしたいな。)
+                continue;
+            }
+            break;
+        }
+        if(ret!==null){
+            //受信
+            return ret;
+        }
+        //CLOSEDに移行
+        out_buf.dispose();
+        this._out_buf = undefined;        
+        this._st=ST.CLOSED;
+        this._close_lock.release();
+        return undefined;      
     }
     /**
-     * @async
-     * 信号の検出を開始します。
-     * onStart,onData,onEndの順でコールバック関数を呼び出します。
-     * onStartが呼び出された後は、必ずonEndが呼び出されます。
-     * @returns {Promise<boolean>}
-     * 常にtrueです。
+     * CLOSE状態に遷移するまで待ちます。
+     * 受信中の場合、受信が完了するまで待機します。
+     * 待機したくない場合は先に#interruptを実行してください。
+     * @returns 
      */
-    async start(onStart,onData,onEnd){
-        TBSK_ASSERT(!this._currentGenerator);
-        let _t=this;
-
-        let decoder = this._decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
-
-        this._currentGenerator =new Workflow(this._demod, this._input_buf, decoder,{onStart:onStart,onData:onData,onEnd:onEnd});//新規生成
-        await this._currentGenerator.waitForEnd();//1st
-        _t._currentGenerator=undefined;
-        return true;
-    }
-    /**
-     * 信号の検出を停止します。stopは１度だけしか呼べません。
-     * @returns {Promise}
-     * 状態がIDLEに戻るまで待機するPromiseです。
-     * startのPromiseが解除された後に解除されます。(startの後に待機するからそのはずなんだがな！)
-     */
-    async stop()
-    {
-        let _t=this;
-        TBSK_ASSERT(this._currentGenerator);
-        //@ts-ignore
-        _t._currentGenerator.kill();
-        //@ts-ignore
-        await _t._currentGenerator.waitForEnd();//2nd
-        TBSK_ASSERT(this._currentGenerator===undefined);
-//        _t._currentGenerator=undefined;
-        return true;
-    }    
-    
-    push(src)
-    {
-        if (this._currentGenerator == null) {
+    async close(){
+        const ST=PacketProcessor.ST;        
+        switch(this._st){
+        case ST.CLOSED:
+            return;
+        case ST.READING:
+        case ST.WAIT_FOR_DETECT:
+        case ST.DETECTING:
+            //クローズロックまち
+            await this._close_lock.wait();
+            TBSK_ASSERT(this._st==ST.CLOSED);
             return;
         }
-        if (this._currentGenerator.next(src).done) {
-            this._currentGenerator = null;
-        }
+    }
+    update(src){
+        this._input_buf.puts(src);
+    }
+    /**
+     * 処理の中断要求を出す。
+     * 中断要求した後はreadは必ず失敗します。
+     */
+    interrupt(){
+        this._kill_request=true;
     }
 }
 
 
-const ST={
-    OPENING: 1,
-    CLOSED: 2,
-    CLOSING: 3,
-    IDLE: 4,
-    RECVING: 5,
-    BREAKING:6,
-}
+
+
+
+
 
 /**
- * TBSK変調信号の送受信機能を統合したモデムクラスです。
+ * disposeの実行が必要なEventTarget継承クラスです。
  */
-export class TbskReceiver extends Disposable
+class DisposableEventTarget extends EventTarget{}
+
+/**
+ * TBSK変調信号の受信機能を提供します。
+ */
+export class TbskReceiver extends DisposableEventTarget
 {
-    static ST=ST;
+    static ST={
+        OPENING: 1,
+        CLOSED: 2,
+        CLOSING: 3,
+        IDLE: 4,
+        RECVING: 5,
+        BREAKING:6,    
+    };
     /**
      * インスタンスの状態を返します。
      */
@@ -279,20 +249,32 @@ export class TbskReceiver extends Disposable
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle 
      */
-    constructor(mod,tone,preamble_cycle=undefined,decoder=undefined)
+    constructor(mod,tone,preamble_th=1.0,preamble_cycle=4)
     {
         super();
+        const ST=TbskReceiver.ST;
         TBSK_ASSERT(mod);
         TBSK_ASSERT(tone);
+        this._mod=mod;
         this._status=ST.CLOSED;
         this._rx_task=undefined;
         this._closing_lock=undefined;
+        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle);
+        this._input_buf = new DoubleInputIterator(mod,true);
+        this._packet_proc=undefined;
+        this._decoder=undefined;
+
+
+        
+
+
+
+
+
         /** @type {AudioInput} */
         //@ts-ignore
         this._audio_input=undefined;
-        this._listener=new TbskListener2(
-            mod,tone,1.0,preamble_cycle,
-            decoder);
+        this._packet_proc=undefined;
     }
     /**
      * Audioデバイスの準備ができるまで待ちます。
@@ -300,47 +282,48 @@ export class TbskReceiver extends Disposable
      * @returns {Promise}
      * ステータス異常の場合はrejectします。
      */
-    async open(carrier=16000)
+    async open(carrier=16000,decoder=undefined)
     {
         let _t=this;
+        const ST=TbskReceiver.ST;
         if(_t._status!=ST.CLOSED){
             throw new TbskException();
         }
         let audio_input=new AudioInput(carrier);
+        this._decoder= decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
+
         /** @type {?} */
         _t._status=ST.OPENING;
         await audio_input.open();
-        _t._audio_input=audio_input;
-        audio_input.start((s)=>{
-            _t._listener.push(s);
-        });
+        this._audio_input=audio_input;
         _t._status=ST.IDLE;
         return;
     }
 
 
     /**
-     * 送信機を閉じます。
+     * 受信機を閉じます。
      * @returns 
      */
     async close()
     {
         let _t=this;
+        const ST=TbskReceiver.ST;
         switch(_t._status){
         case ST.CLOSED:
             return;
         case ST.IDLE:
             _t._status=ST.CLOSING;
-            this._audio_input.close();
-            await Promise.resolve();
+            await this._audio_input.close();
             _t._status=ST.CLOSED;
             return;
         case ST.BREAKING:
         case ST.RECVING:
             _t._status=ST.CLOSING;
-            _t._closing_lock=new PromiseLock();
-            await _t._rx_task?.join();            
+            _t._closing_lock=new PromiseLock(); //CLOSINGの多重呼び出し対策
+            await this._rx_lock?.wait();//rx待機待ち
             TBSK_ASSERT(_t._status==ST.CLOSING);//変更しないこと
+            await this._audio_input.close();
             _t._status=ST.CLOSED;
             //@ts-ignore
             _t._closing_lock.release();
@@ -353,34 +336,26 @@ export class TbskReceiver extends Disposable
             break;
         }
         throw new TbskException("Invalid status:"+_t._status);
-
     }
     dispose()
     {
+        const ST=TbskReceiver.ST;
         if(this._status==ST.CLOSED){
             return;
         }
+        //リソースの破棄は非同期で実行する。
         this.close().then(()=>{
-            this._listener.dispose();}
-        );
+            this._demod.dispose();
+            this._input_buf.dispose();
+        });
     }
-
-
-
-
-
-
-
-
-
-    
-
     
     /**
      * rx関数が実行可能な状態かを返します。
      * @returns {boolean}
      */
     get rxReady(){
+        const ST=TbskReceiver.ST; 
         switch(this._status){
             case ST.OPENING:
             case ST.CLOSED:
@@ -404,78 +379,75 @@ export class TbskReceiver extends Disposable
      */
     async rx(onSignal,onData,onSignalLost)
     {
+        
         if(!this.rxReady){
             throw new TbskException();
         }
         let _t=this;
-        class ListenerTask extends PromiseTask{
-            constructor(listener){
-                super();
-                this._listener=listener;
-            }
-            async run(){
-                return super.run(
-                    this._listener.start(
-                        ()=>{
-                            onSignal();
-                        },
-                        (d)=>{
-                            onData(d);
-                        },
-                        ()=>{
-                            onSignalLost();
-                        },
-                    )
-                );
-            }
-            async join(){
-                if(this._listener){
-                    this._listener.stop();//no-waitでメッセージだけ流す.                    
-                    this._listener=undefined;
+        const ST=TbskReceiver.ST; 
+        let pp=this._packet_proc=new PacketProcessor(this._demod,this._input_buf);
+        //Audioの開始
+        _t._decoder?.reset();
+        _t._status=ST.RECVING;
+        _t._rx_lock=new PromiseLock();
+        let ps=new PromiseSequenceRunner();
+        this._audio_input.start((s)=>{
+            pp?.update(s);
+        });
+        try{
+            if(await pp?.detect()){
+                ps.execute(()=>{onSignal()});//非同期実行
+                while(true){
+                    let v=await pp?.read(_t._decoder);
+                    if(!v){
+                        break;
+                    }
+                    ps.execute(()=>{
+                        if(_t._status==ST.RECVING){
+                            //非同期にRECV以外に遷移してたら送信しない。
+                            onData(v);
+                        }
+                    });//非同期実行
                 }
-                return super.join();
+                ps.execute(()=>{onSignalLost()});//非同期実行
             }
-        }
-        let task=new ListenerTask(_t._listener);
-        this._rx_task=task;
-        this._status=ST.RECVING;
-        await task.run();
-        this._rx_task=undefined;
-        //終わった時点で確認
-        switch(this._status){
-        case ST.BREAKING:
-        case ST.RECVING:
-            _t._status=ST.IDLE;
-            return;
-        case ST.CLOSING:
-            return;
-        default:
-            throw new TbskException();
+        }finally{
+            //Audioの停止
+            this._audio_input.stop();
+            await ps.execute(()=>{});//残りを全部実行
+            if(_t._status!=ST.CLOSING){
+                _t._status=ST.IDLE;
+            }
+            _t._rx_lock.release();
+            _t._rx_lock=undefined;
         }
     }
     /**
      * @async
      * rxを停止して待機状態になるまで待ちます。
+     * 既にbreak中,closing中の場合は、実行中のRXの完了を待機します。
+     * コールバック関数内で実行した場合、実行以降に受信したメッセージは破棄します。
      * @returns {Promise<void>}
      * 待機状態が完了するとresolveします。
      */
     async rxBreak()
     {
+        const ST=TbskReceiver.ST;
+        let pp=this._packet_proc;
+        pp?.interrupt();
         switch(this._status){
-        case ST.CLOSED:
-        case ST.CLOSING:
-            throw new TbskException();        
         case ST.IDLE:
+            //console.log("IDLE..pass!");
             return;
         case ST.RECVING:
             this._status=ST.BREAKING;
         case ST.BREAKING:
-            //@ts-ignore
-            await this._rx_task.join();
+            //console.log("break_lock",this.status,this._rx_lock);
+            await this._rx_lock?.wait();
+            //console.log("break_release",this.status);
             return;//Statusの保証はしない。
-
         default:
-            throw new TbskException();
+            throw new TbskException("rxBreak");
         }
     }
     get audioContext(){

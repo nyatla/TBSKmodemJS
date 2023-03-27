@@ -11,7 +11,8 @@ import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
-import {PromiseTask,DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
+import {DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
+import {PromiseTask} from "../utils/promiseutils"
 
 
 

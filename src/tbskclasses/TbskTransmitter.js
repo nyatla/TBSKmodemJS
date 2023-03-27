@@ -1,13 +1,14 @@
 //@ts-check
 
 import { AudioPlayer } from "../audio/AudioPlayer.js";
-import {TBSK_ASSERT} from "../utils/functions"
+import {sleep, TBSK_ASSERT} from "../utils/functions"
 
 import { TbskModulator } from "./TbskModulator.js";
 import { TraitTone} from "./TbskTone.js";
 
 
-import {PromiseTask,PromiseLock,Disposable, TbskException} from "../utils/classes.js"
+import {Disposable, TbskException} from "../utils/classes"
+import {PromiseThread,PromiseLock} from "../utils/promiseutils"
 
 
 
@@ -33,36 +34,45 @@ export class TbskTransmitter extends Disposable
     
     /**
      * @param {*} mod 
-     * @param {AudioContext} actx 
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle 
      */
-    constructor(mod,actx,tone,preamble_cycle=undefined)
+    constructor(mod,tone,preamble_cycle=undefined)
     {
         super();
         this._sample_rate=undefined;
-        this._actx=actx;
+        this._actx=undefined;
         this._status=ST.CLOSED;
         this._current_tx=undefined;
         this._closing_lock=undefined;
      
         this._mod=new TbskModulator(mod,tone,preamble_cycle);
     }
+    dispose()
+    {
+        if(this._status==ST.CLOSED){
+            return;
+        }
+        this.close().then(()=>{
+            this._mod.dispose();}
+        );
+    }    
     /**
      * 送信ポートを開きます。
+     * @param {AudioContext} actx 
      * @param {number} carrier
      * @returns {Promise}
      * ステータス異常の場合はrejectします。
      * 
      */
-    async open(carrier=16000)
+    async open(actx,carrier=16000)
     {
-        let _t=this;
-        if(_t._status!=ST.CLOSED){
+        if(this._status!=ST.CLOSED){
             throw new TbskException();
         }
+        this._actx=actx;
         this._sample_rate=carrier;
-        _t._status=ST.IDLE;
+        this._status=ST.IDLE;
         return;
     }
     /**
@@ -79,6 +89,7 @@ export class TbskTransmitter extends Disposable
             _t._status=ST.CLOSING;
             //nothing to do
             _t._status=ST.CLOSED;
+            _t._actx=undefined;
             return;
         case ST.BREAKING:
         case ST.SENDING:
@@ -102,15 +113,7 @@ export class TbskTransmitter extends Disposable
     get audioContext(){
         return this._actx;
     }
-    dispose()
-    {
-        if(this._status==ST.CLOSED){
-            return;
-        }
-        this.close().then(()=>{
-            this._mod.dispose();}
-        );
-    }
+
 
     /**
      * tx関数が実行可能な状態かを返します。
@@ -150,40 +153,45 @@ export class TbskTransmitter extends Disposable
             throw new TbskException();
         }
         //always IDLE
-        class PlayerTask extends PromiseTask{
+        class PlayerTask extends PromiseThread{
             constructor(actx,buf){
                 super();
                 this._player=new AudioPlayer(actx,buf);
+                this._interrupted=false;
             }
             async run(){
-                return super.run(
-                    this._player.play().then(
-                        ()=>{
-                            return new Promise((resolve)=>{
-                                setTimeout(resolve,30);
-                            })
-                        }
-                    )
-                );
+//                console.log("RUN1");
+                await this._player.play();
+//                console.log("RUN2");
+                await sleep(10);
+//                console.log("RUN3");
+                return;
             }
-            async join(){
-                if(this._player.isPlaying){
-                    this._player.stop();
+            async interrupt(){
+                if(this._interrupted){
+                    return;
                 }
-                return super.join();
+                //console.log(this._player._actx);
+                this._interrupted=true;
+                await this._player.stop();
+                return;
+
             }
+
         }
-        //@ts-ignore
         let actx=_t._actx;
         let mod=_t._mod;
         let f32_array = mod.modulate(src,stopsymbol);
+        //@ts-ignore
         let buf = actx.createBuffer(1, f32_array.length,_t._sample_rate);
         buf.getChannelData(0).set(f32_array);
 
         let task=new PlayerTask(actx,buf);
         _t._status=ST.SENDING;
         _t._current_tx=task;
-        await task.run();
+//        console.log("TX start");
+        await task.start();
+//        console.log("TX start/");
         _t._current_tx=undefined;
         switch(_t.status){
         case ST.SENDING://変化なし
@@ -211,9 +219,11 @@ export class TbskTransmitter extends Disposable
                 return;
             case ST.SENDING:
                 _t._status=ST.BREAKING;
+                _t._current_tx?.interrupt();//awaitless
                 await _t._current_tx?.join();
                 return;
             case ST.BREAKING:
+                _t._current_tx?.interrupt();//awaitless
                 await _t._current_tx?.join();
                 return;    
             case ST.CLOSED:

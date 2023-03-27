@@ -102,8 +102,8 @@ export class AudioInput
     }
     /**
      * @async
-     * 音声キャプチャデバイスを開きます。結果はPromiseで返します。
-     * @returns {Promise<boolean>}
+     * 音声キャプチャデバイスを開きます。
+     * @returns {Promise<void>}
      * 
      */
     async open() {
@@ -159,12 +159,12 @@ export class AudioInput
         //actx.suspend().then(()=>{
         //    actx.resume().then(()=>{resolve(true);})
         //});
-        return true;
+        return;
     }
     /**
      * 音声キャプチャデバイスを閉じます。以降は使用不能です。
      */
-    close() {
+    async close() {
         this.stop();
         if (this._nodes) {
             this._nodes.handler.disconnect();
@@ -172,14 +172,14 @@ export class AudioInput
         }
         this._nodes = null;
         if(this._actx){
-            this._actx.close();
+            await this._actx.close();
             this._actx = null;    
         }
         const tracks = this._media_stream.getTracks();
         tracks.forEach(function(track) {
             track.stop();
         });
-        return true;     
+        return;     
     }
     /**
      * 関連付けられたオーディオコンテキストを返します。

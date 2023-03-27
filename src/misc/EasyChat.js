@@ -1,19 +1,24 @@
 // @ts-check
 
 import { TbskModem } from "../tbskclasses/TbskModem.js";
-import { PromiseTask, TbskException } from "../utils/classes";
+import { TbskReceiver } from "../tbskclasses/TbskReceiver.js";
+import { TraitTone, XPskSinTone } from "../tbskclasses/TbskTone.js";
+import { TbskTransmitter } from "../tbskclasses/TbskTransmitter.js";
+import { TbskException } from "../utils/classes";
+import { PromiseLock, PromiseTask } from "../utils/promiseutils";
 import { TBSK_ASSERT } from "../utils/functions.js";
 
 
 const ST={
     CLOSED  :0, //閉じている
     OPENNING:1, //OPENが実行中
-    CLOSING :2, //CLOSEを実行中
-    IDLE    :3, //何も実行していない
-    SENDING :4,                 //TX実行中
-    SEND_SUSPEND_RECV:5,    //TX実行中。
-    SENDING_RX_STOP:7,  //送信ためにRXの停止要求中
-    RECV:6,
+    RECIVING:3, //受信中
+    RECEIVE_SUSPEND_WAIT:4,
+    SENDING:6,
+    SEND_BREAK:7,
+    CLOSING:8
+
+
 };
 /**
  * 簡易的な半二重通信チャットインタフェイスです。
@@ -21,14 +26,15 @@ const ST={
 export class EasyChat extends EventTarget
 {
     static ST=ST;
+    get status(){return this._status;};
     /**
      * @param {any} mod
-     * @param {TbskModem|undefined} modem
+     * @param {TraitTone|undefined} tone
      * ラップするモデムインスタンス.省略時はデフォルトモデムを生成。
-     * @param {Number} carrier
-     * キャリア周波数 
+     * @param {Number|undefined} preamble_cycle
+     * プリアンブルの数 
      */
-    constructor(mod,modem=undefined,carrier=16000)
+    constructor(mod,tone=undefined,preamble_cycle=undefined)
     {
         super();
         let _t=this;
@@ -51,162 +57,247 @@ export class EasyChat extends EventTarget
         };
         _t._callOnSignalLost=()=>{
 
-        };
+        };        
         _t._status=ST.CLOSED;
-        _t._carrier=carrier;
-        _t._modem=modem?modem:new TbskModem(mod);
-        _t._send_current=undefined;
-        _t._rx_resume_resolver=undefined;
+        let attached=false;
+        if(!tone){
+            tone=new XPskSinTone(mod,10,10);
+            attached=true;
+        }        
+        _t._tx=new TbskTransmitter(mod,tone,preamble_cycle);
+        _t._rx=new TbskReceiver(mod,tone,preamble_cycle);
+        if(attached){
+            tone.dispose();
+        }
+        _t._close_lock=undefined;   //closingのロック
+        _t._txbreak_lock=undefined;
+        _t._send_current=undefined; //txの送信パラメータ
     }
 
     /**
-     * 回線を開きます。
-     * @returns {boolean}
+     * @async
+     * 回線を開きます。 
+     * awaitした場合、openの結果を返します。
+     * @returns {Promise<void>}
      * Trueの場合、openがコールされます。
      * @throws
      * ステータス以上の場合
      */
-    open()
+    async open(carrier)
     {
         let _t=this;
         if(this._status!=ST.CLOSED){
-            return false;
+            return;
         }
+        let tx=_t._tx;
+        let rx=_t._rx;
+        //
         _t._status=ST.OPENNING;
-        this._modem.open(this._carrier).then(
-            ()=>{
-                _t._status=ST.IDLE;
-                _t._callOnOpen();
-                //受信系のセットアップ
-                function ploop(){
-                    _t._modem.rx(
-                        ()=>{
-                            _t._callOnSignal();
-                        },
-                        (d)=>{
-                            _t._callOnUpdate(d);
-                        },
-                        ()=>{
-                            _t._callOnSignalLost();
-                        },
-                    ).then(()=>{
-                        switch(_t._status){
-                        case ST.SENDING_RX_STOP:
-                            new Promise((resolver)=>{_t._rx_resume_resolver=resolver;}).then(()=>{ploop()});
-                        }
-                    });
-                }
-                ploop();//受信ループ
+        await rx.open(carrier);
+        await tx.open(rx.audioContext,carrier);
+        _t._callOnOpen();
+        _t._status=ST.RECIVING;
+        //RXタスクは非同期で実効。
+        class RxRecvTask extends PromiseTask
+        {
+            static ST={
+                NONE:0,
+                RECVING:1,
+                INTERRUPT:2,
+                REQ_SUSPEND:3
+
             }
-        );
-        return true;
+            /**
+             * @param {TbskReceiver} rx 
+             * open済のrx
+             */
+            constructor(rx){
+                super();
+                const ST=RxRecvTask.ST;
+                this._rx=rx;
+                this._running=false;
+            }
+            async run(onSignal,onUpdate,onSignalLost)
+            {
+                let _t=this;
+                _t._request=undefined;
+                const ST=RxRecvTask.ST;
+                async function fn(){
+                    while(_t._running){
+                        await rx.rx(onSignal,onUpdate,onSignalLost);
+                        this._request=undefined;
+                    }
+                }
+                this._running=true;
+                super.run(fn);
+            }
+            async join(){
+                this._running=false;
+                await this._rx.close();
+                return super.join();
+            }
+            /**
+             * 受信を一時的に中断する。
+             */
+            async suspend(){
+                //synchronized
+                if(!this._running){
+                    return false;
+                }
+                this._suspend_lock=new PromiseLock();
+                await rx.rxBreak();
+                if(this._running){
+                    this._suspend_lock.release();
+                    this._suspend_lock=undefined;
+                    return false;
+                }
+                return true;
+            }
+            /**
+             * サスペンドから復帰する
+             */
+            async resume(){
+                //synchronized
+                if(!this._running){
+                    return false;
+                }
+                if(!this._suspend_lock){
+                    return false;
+                }
+                this._suspend_lock.release();
+                this._suspend_lock=undefined;
+            }
+            /**
+             * 受信中のパケットを中断する
+             */
+            async interrupt(){
+                //synchronized
+                if(!this._running){
+                    return false;
+                }
+                return this._rx.rxBreak();
+            }
+        }
+        //let rxtask=new RxTask();
+        //rxtask.run();
     };
 
     /**
      * 回線を閉じます。
      */
-    close()
+    async close()
     {
         let _t=this;
+        let tx=this._tx;
+        let rx=this._rx;        
         switch(_t._status){
-        case ST.IDLE:
-            _t._status=ST.CLOSING;
-            //Go Promise
-            this._modem.close().then(
-                ()=>{
-                    _t._status=ST.IDLE;
-                    _t._callOnClose();
-                }
-            );
-            return true;
-        case ST.OPENNING:
-            //OPENNINGなら、openが終わった後にcloseする。
-            _t._status=ST.CLOSING;
-            this.addEventListener("open",()=>{
-                Promise.resolve().then(()=>{_t.close();});
-            });
+        case ST.CLOSED:
             return;
         case ST.CLOSING:
-        case ST.CLOSED:
-            return false;
-        default:
-            throw new TbskException("Invalid status:"+_t._status);    
+            await _t._close_lock.wait();
+            return;
+        case ST.RECEIVE_SUSPEND_WAIT:
+        case ST.RECIVING:
+            this._status=ST.CLOSING;
+            _t._close_lock=new PromiseLock();
+            try{
+                await rx.rxBreak();
+                TBSK_ASSERT(this._status==ST.CLOSING);
+                this._status=ST.CLOSED;
+            }finally{
+                _t._close_lock.release();
+                _t._close_lock=undefined;
+            }
+            return;
         }
     };
     /**
-     * 音声入力のRMS値を返します。
-     */
-    get rms(){return this._modem.rms;};
-    /**
      * @async
      * データを送信します。
-     * 既に送信中のデータがある場合は、中断してから送信します。
+     * 受信中のデータがある場合は先に中断してから送信します。
+     * 送信中の場合は失敗します。
      * @param {Int8Array|String} v 
      */
-    send(v,stop_symbol=true)
+    async send(v,stop_symbol=true)
     {
         let _t=this;
-        let modem=this._modem;
+        let tx=this._tx;
+        let rx=this._rx;
+
         switch(this._status){
-        case ST.CLOSING:
-        case ST.CLOSED:
-        case ST.OPENNING:
-            return false;
-        case ST.IDLE:
-            //Go Promise
-            function chain(v,stop_symbol){
-                modem.tx(v,stop_symbol).then(
-                    ()=>{
-                        let c=_t._send_current;
-                        _t._send_current=undefined;
-                        if(c){
-                            chain(c[0],c[1]);
-                        }else{
-                            _t._status=ST.RX_RESUME;
-                            //rxのレジーム
-                            TBSK_ASSERT(_t._rx_resume_resolver);
-                            _t._rx_resume_resolver();//RXの再開
-                        }
-                    }
-                );
-            }
-            _t._status=ST.SENDING_RX_STOP;
-            //rxを停止
-            modem.rxBreak().then(
-                ()=>{
-                    _t._status=ST.SENDING;
-                    chain(v,stop_symbol);
-                }
-            )
-            return true;
-        case ST.SENDING_RX_STOP:
-            return true;
         case ST.SENDING:
-            _t._send_current=[v,stop_symbol];//待機を上書き
-            modem.txBreak();//多重呼び出し時しでも現在のtxに対してbreakするはず。
-            return true;
+        case ST.RECEIVE_SUSPEND_WAIT:
+            return false;
+        case ST.CLOSING:
+            return false;
+        case ST.RECIVING:
+            break;
         default:
-            throw new TbskException("Invalid status:"+_t._status);
+            throw new TbskException();    
+        }
+
+        TBSK_ASSERT(this._status==ST.RECIVING);
+        this._status=ST.RECEIVE_SUSPEND_WAIT;
+        this._rx_lock=new PromiseLock();//受信を再開するときにリリースされるロック
+        try{
+            await rx.rxBreak();
+            let skip_tx=false;
+            switch(this._status){
+            case ST.CLOSING://クローズ要求である。
+                return false;
+            case ST.SEND_BREAK:
+                skip_tx=true;//スキップフラグをセット
+                break;
+            case ST.RECEIVE_SUSPEND_WAIT:
+                break;//停止完了。次へ
+            default:
+                throw new TbskException();
+            }
+            if(!skip_tx){
+                this._status=ST.SENDING;
+                await tx.tx(v,stop_symbol);
+                switch(this._status){
+                case ST.CLOSING:
+                    //クローズ要求である。
+                    return false;
+                case ST.SEND_BREAK:
+                case ST.SENDING:
+                    break;
+                default:
+                    throw new TbskException();
+                }
+            }
+        }finally{
+            this._rx_lock.release();
+            this._rx_lock=undefined;
         }
     };
     /**
      * 送信処理を中断します。
      * @returns 
      */
-    sendBreak()
+    async sendBreak()
     {
-        let modem=this._modem;
+        let _t=this;
+        let tx=this._tx;
         switch(this._status){
-        case ST.CLOSING:
-        case ST.CLOSED:
-        case ST.OPENNING:
-            return false;
-        case ST.IDLE:
-            return true;            
+        case ST.RECIVING:
+            return;//なんもせーへん
         case ST.SENDING:
-            this._send_current=undefined;//送信予約を削除
-            modem.txBreak();
+        case ST.RECEIVE_SUSPEND_WAIT:
+            this._status=ST.SEND_BREAK;
+            this._txbreak_lock=new PromiseLock();
+            await tx.txBreak();
+            await this._txbreak_lock.wait();
+            return;
+        case ST.SEND_BREAK:
+            await this._txbreak_lock?.wait();
             return;
         }
     }
+    /**
+     * 音声入力のRMS値を返します。
+     */
+    get rms(){return this._rx.rms;};
+
 }
