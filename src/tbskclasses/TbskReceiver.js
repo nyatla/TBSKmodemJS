@@ -9,8 +9,8 @@ import {TbskDemodulator} from "./TbskDemodulator"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
-import {DoubleInputIterator,Disposable, TbskException} from "../utils/classes.js"
-import {PromiseSequenceRunner,PromiseThread, PromiseLock} from "../utils/promiseutils"
+import {DoubleInputIterator,TbskException,Disposable} from "../utils/classes.js"
+import {PromiseSequenceRunner,PromiseLock} from "../utils/promiseutils"
 
 
 
@@ -80,13 +80,14 @@ class PacketProcessor
                 while(true){
                     if(_t._kill_request){
                         out_buf=null;//ERR
+                        break;
                     }
                     out_buf = dresult.getRecover();
-                    if (out_buf == null) {
-                        await sleep(30);//タスクスイッチ(高負荷だからresolverにしたいな。)
-                        continue;
+                    if (out_buf != null) {
+                        break;
                     }
-                    break;
+                    await sleep(30);//タスクスイッチ(高負荷だからresolverにしたいな。)
+                    continue;
                 }
                 break
             default:
@@ -141,7 +142,7 @@ class PacketProcessor
                 }else{
                     if (ra.length > 0) {
                         //ここでdataイベント
-                        console.log("data:");
+                        //console.log("data:");
                         if (decoder) {
                             let rd = decoder.put(ra);
                             if (rd) {
@@ -153,7 +154,7 @@ class PacketProcessor
                         ra=[];
                     }
                     if (e instanceof RecoverableStopIteration) {
-                        return false;//
+                        return false;//continue
                     }
                 }
             }
@@ -163,7 +164,7 @@ class PacketProcessor
         let out_buf=this._out_buf;
         let ret;
         while(true){
-            ret=loop(out_buf);//awaitLoopなので負荷率高いよ。
+            ret=loop(out_buf);//awaitLoopなので負荷率高いよ。 false,null,anyの3種
             if(ret===false){
                 await sleep(30);//タスクスイッチ(高負荷だからresolverにしたいな。)
                 continue;
@@ -218,16 +219,10 @@ class PacketProcessor
 
 
 
-
-/**
- * disposeの実行が必要なEventTarget継承クラスです。
- */
-class DisposableEventTarget extends EventTarget{}
-
 /**
  * TBSK変調信号の受信機能を提供します。
  */
-export class TbskReceiver extends DisposableEventTarget
+export class TbskReceiver extends Disposable
 {
     static ST={
         OPENING: 1,
@@ -249,7 +244,7 @@ export class TbskReceiver extends DisposableEventTarget
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle 
      */
-    constructor(mod,tone,preamble_th=1.0,preamble_cycle=4)
+    constructor(mod,tone,preamble_cycle=4,preamble_th=1.0)
     {
         super();
         const ST=TbskReceiver.ST;
@@ -321,6 +316,7 @@ export class TbskReceiver extends DisposableEventTarget
         case ST.RECVING:
             _t._status=ST.CLOSING;
             _t._closing_lock=new PromiseLock(); //CLOSINGの多重呼び出し対策
+            this._packet_proc?.interrupt();//インタラプト
             await this._rx_lock?.wait();//rx待機待ち
             TBSK_ASSERT(_t._status==ST.CLOSING);//変更しないこと
             await this._audio_input.close();
@@ -433,8 +429,7 @@ export class TbskReceiver extends DisposableEventTarget
     async rxBreak()
     {
         const ST=TbskReceiver.ST;
-        let pp=this._packet_proc;
-        pp?.interrupt();
+        this._packet_proc?.interrupt();
         switch(this._status){
         case ST.IDLE:
             //console.log("IDLE..pass!");

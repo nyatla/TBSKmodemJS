@@ -5,7 +5,6 @@ import {TbskException} from "./utils/classes"
 import {AudioInput} from "./audio/AudioInput"
 import {AudioPlayer} from "./audio/AudioPlayer"
 import { Buffer } from 'buffer';
-import { TbskModem } from "./tbskclasses/TbskModem";
 import { TbskTransmitter } from "./tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "./tbskclasses/TbskReceiver";
 import { TbskModulator } from "./tbskclasses/TbskModulator";
@@ -92,13 +91,9 @@ export class TBSKmodemJS
             EasyChat:class extends EasyChat{
                 /**
                  * {@link EasyChat}クラスのエイリアスです。
-                 * @param {TraitTone|undefined} tone
-                 * ラップするモデムインスタンス.省略時はデフォルトモデムを生成。
-                 * @param {Number|undefined} preamble_cycle
-                 * プリアンブルの数 
                  */
-                constructor(tone=undefined,preamble_cycle=undefined){
-                    super(...[wasm].concat([tone,preamble_cycle]));
+                constructor(options=undefined){
+                    super(...[wasm].concat([options]));
                 }
             }
         };
@@ -138,18 +133,18 @@ export class TBSKmodemJS
                 super(...[wasm].concat(args));
             }
         };
-        /** @class {TbskModem}*/
-        this.TbskModem=class extends TbskModem
-        {
-            /**
-             * @param {TraitTone|undefined} tone
-             * @param {number|undefined} preamble_cycle 
-             */
-            constructor(tone=undefined,preamble_cycle=undefined)
-            {
-                super(...[wasm].concat([tone,preamble_cycle]));
-            }
-        };
+        // /** @class {TbskModem}*/
+        // this.TbskModem=class extends TbskModem
+        // {
+        //     /**
+        //      * @param {TraitTone|undefined} tone
+        //      * @param {number|undefined} preamble_cycle 
+        //      */
+        //     constructor(tone=undefined,preamble_cycle=undefined)
+        //     {
+        //         super(...[wasm].concat([tone,preamble_cycle]));
+        //     }
+        // };
         /** @class {TbskTransmitter}*/
         this.TbskTransmitter=class extends TbskTransmitter
         {

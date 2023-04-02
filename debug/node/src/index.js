@@ -21,6 +21,47 @@ function TEST(message,e){
     }
 }
 
+class CheckPoint{
+    constructor(name){
+        this._name=name;
+        this._step=0;
+    }
+    info(){
+        console.log("[INFO] CheckPoint "+this._name);
+        return this;
+    }
+    step(v,message){
+        if(v===undefined){
+            return;//ignode
+        }
+        let m=message===undefined?"":"("+message+")";
+        if(v!=this._step){
+            throw new Error("[ NG ] Invalid step:"+v+" correct:"+this._step+m);
+        }
+        console.log("[ OK ] step:"+this._step+m);
+        this._step++;
+    }
+    catchException(f){
+        try{
+            f();
+            console.error("[ NG ] No exception has occurred.");
+        }catch(e){
+            console.log("[ OK ] Exception has occurred.");
+        }
+    }
+    deadend(){
+        console.error("[ NG ] dead end.");
+        throw new Error();
+    }
+    complete(l){
+        if(l==this._step-1){
+            console.log("[PASS] Complete :"+l);
+        }else{
+            console.error("[INFO] unreached :"+l+"!="+this._step);
+        }
+    }
+}
+
 /**
  * 
  */
@@ -381,76 +422,448 @@ TBSKmodemJS.load().then((tbsk)=>{
         }catch(e){
             console.log(e);
         }
-    })/*
-    $("#test5").on("click",()=>{
+    })
 
-        async function fn()
-        {
-            let chat=new tbsk.misc.EasyChat(new tbsk.XPskSinTone(10,10));
-            TEST("Status check",chat.status==EasyChat.ST.CLOSED);
-            let asopen=chat.open();
-            TEST("Status check",rxi.status==TbskReceiver.ST.OPENING);
-            await open_await;
-            TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-            let txi=new tbsk.TbskTransmitter(new tbsk.XPskSinTone(10,10));
-            await txi.open(rxi.audioContext);
-            console.log("受信テスト.");
-            {
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-                let rx=rxi.rx(
-                    ()=>{console.log("RX: onstart");},
-                    (d)=>{console.log("RX: ondata "+d);},
-                    ()=>{console.log("RX: onclose")},)
-                TEST("Status check",rxi.status==TbskReceiver.ST.RECVING);
-                await txi.tx("HELLLLLO");
-                await rx;
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
+    
+    $("#test4").on("click",()=>{
+        async function fn(){
+            let ttx=new tbsk.TbskTransmitter(new tbsk.XPskSinTone(10,10));
+            await ttx.open(new AudioContext());
+            
+            //
+            //  closeのテスト
+            //
+            /*
+            if(true){
+                let cc=new CheckPoint("open後にすぐにcloseする。").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(4);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcomplete",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(5);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                chat.close();
+                cc.step(3);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(5);
+            }            
+            if(true){
+                let cc=new CheckPoint("openをした後でcloseする。").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcomplete",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(5);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                chat.close();
+                cc.step(4);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(5);
             }
-            console.log("受信中断テスト.");
-            {
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-                let rx=rxi.rx(
-                    ()=>{console.log("RX: onstart");},
-                    (d)=>{console.log("RX: ondata "+d);},
-                    ()=>{console.log("RX: onclose")},)
-                TEST("Status check",rxi.status==TbskReceiver.ST.RECVING);
-                await txi.tx("HELLLLLO");
-                await sleep(10);
-                let rxb=rxi.rxBreak();
-                TEST("Status check",rxi.status==TbskReceiver.ST.BREAKING);
-                let rxb2=rxi.rxBreak();
-                TEST("Status check",rxi.status==TbskReceiver.ST.BREAKING);
-                rx.then(()=>{console.log("rx:done")});
-                rxb.then(()=>{console.log("rxb:done")});
-                rxb2.then(()=>{console.log("rxb2:done")});
-
-
-
-                await rxb;
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-                await rx;
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-                await rxb2;
-                TEST("Status check",rxi.status==TbskReceiver.ST.IDLE);
-                
+            if(true){
+                let cc=new CheckPoint("openイベントの中でcloseする").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);chat.close();});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcomplete",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(5);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                chat.close();
+                cc.step(4);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(5);
             }
-            txi.close();
-            let rxc=rxi.close();
-            console.log(rxi.status);
-            TEST("Status check",rxi.status==TbskReceiver.ST.CLOSING);
-            await rxc;
-            TEST("Status check",rxi.status==TbskReceiver.ST.CLOSED);
-            //setInterval(()=>{console.log(modem.rms)},1000);
+            if(true){
+                let cc=new CheckPoint("closeイベントの中でcloseする").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcomplete",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{chat.close();cc.step(5);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                chat.close();
+                cc.step(4);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(5);
+            }    
+            if(true){
+                let cc=new CheckPoint("sendstartイベントの中でcloseする").info();
+                let STEP=(p,m)=>{cc.step(p,m);}
+                STEP(0);
+                let chat=new tbsk.misc.EasyChat();
+                STEP(1);
+                chat.addEventListener("open",           ()=>{STEP(3);});
+                chat.addEventListener("sendstart",      ()=>{STEP(5,"IN");chat.close();});
+                chat.addEventListener("sendcompleted",  ()=>{STEP(6);});
+                chat.addEventListener("detected",       ()=>{STEP();});
+                chat.addEventListener("message",        ()=>{STEP();});
+                chat.addEventListener("lost",           ()=>{STEP();});
+                chat.addEventListener("close",          ()=>{STEP(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                STEP(2);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                STEP(4);
+                chat.send("HELLO");
+                await new Promise((resolve)=>{chat.addEventListener("sendcompleted",()=>{resolve(true);})});//終了待ち
+                STEP(7);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(8);
+            }
+            if(true){
+                let cc=new CheckPoint("sendcompletedイベントの中でcloseする").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step(5);});
+                chat.addEventListener("sendcompleted",  ()=>{cc.step(6);chat.close();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                cc.step(4);
+                chat.send("HELLO");
+                await new Promise((resolve)=>{chat.addEventListener("sendcompleted",()=>{resolve(true);})});//終了待ち
+                cc.step(7);
+                await new Promise((resolve)=>{chat.addEventListener("close",()=>{resolve(true);})});//終了待ち
+                cc.complete(8);
+            }            
+            if(true){
+                let cc=new CheckPoint("detectedイベントの中でcloseする").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                chat.addEventListener("open",           ()=>{cc.step(2);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcompleted",  ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step(4);chat.close();});
+                chat.addEventListener("message",        ()=>{cc.deadend();});
+                chat.addEventListener("lost",           ()=>{cc.step(5);});
+                chat.addEventListener("close",          ()=>{cc.step(6);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(1);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                cc.step(3);
+                await ttx.tx("TESTTEST");
+                await chat.waitCloseAS();
+                cc.complete(6);
+            }
+            if(true){
+                let cc=new CheckPoint("messageイベントの中でcloseする").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                chat.addEventListener("open",           ()=>{cc.step(2);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcompleted",  ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step(4);});
+                chat.addEventListener("message",        ()=>{cc.step(5);chat.close();});
+                chat.addEventListener("lost",           ()=>{cc.step(6);});
+                chat.addEventListener("close",          ()=>{cc.step(7);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(1);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                cc.step(3);
+                await ttx.tx("TESTTEST");
+                await chat.waitCloseAS();
+                cc.complete(7);
+            }
+            if(true){
+                let cc=new CheckPoint("closeイベントの中でcloseする").info();
+                cc.step(0);
+                let rcv="";
+                let chat=new tbsk.misc.EasyChat();
+                chat.addEventListener("open",           ()=>{cc.step(2);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcompleted",  ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step(4);});
+                chat.addEventListener("message",        (v)=>{console.log(v)});
+                chat.addEventListener("lost",           ()=>{cc.step(5);});
+                chat.addEventListener("close",          ()=>{cc.step(6);chat.close();});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(1);
+                await new Promise((resolve)=>{chat.addEventListener("open",()=>{resolve(true);})});//終了待ち
+                cc.step(3);
+                await sleep(500);
+                await ttx.tx("TESTTEST");
+                chat.close();
+                await chat.waitCloseAS();
+                cc.complete(6);
+            }
+            */
+            //
+            //  sendのテスト
+            //
+            /*
+            if(true){
+                let cc=new CheckPoint("open後にすぐにsendする。").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(4);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.catchException(()=>{chat.send("aaa");});
+                cc.step(2);
+                chat.close();
+                await chat.waitCloseAS();
+                cc.complete(4);
+            }
+            if(true){
+                let cc=new CheckPoint("openをした後でsendする。").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step(4);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step(5);});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(7);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                chat.send("aaa");
+                await chat.waitSendAS();
+                cc.step(6);
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(8);
+                cc.complete(8);
+            }
+            if(true){
+                let cc=new CheckPoint("openイベントの中でsendする。").info();
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);chat.send("aaaa");});
+                chat.addEventListener("sendstart",      ()=>{cc.step(4);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step(5);});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(6);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                await chat.waitSendAS();
 
-        }
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(7);
+                cc.complete(7);
+            }
+            if(true){
+                let cc=new CheckPoint("sendstartイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step([4,6][c1++]);if(c1<2){chat.send("aaaa");}});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step([5,7][c2++]);});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                chat.send("Bffff");
+                await chat.waitSendAS();
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(9);
+                cc.complete(9);
+            }
+            if(true){
+                let cc=new CheckPoint("sendcompletedイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step([4,6][c1++]);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step([5,7][c2++]);if(c2<2){chat.send("aaaa");}});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step();});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                chat.send("Bffff");
+                await chat.waitSendAS();
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(9);
+                cc.complete(9);
+            }
+            if(true){
+                let cc=new CheckPoint("detectedイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step(6);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step(7);});
+                chat.addEventListener("detected",       ()=>{cc.step(4);chat.send("bbbbbbbbb");});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step(5);});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                await ttx.tx("TESTTEST");
+                await chat.waitSendAS();
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(9);
+                cc.complete(9);
+            }
+            if(true){
+                let cc=new CheckPoint("messageイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step(6);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step(7);});
+                chat.addEventListener("detected",       ()=>{cc.step();});
+                chat.addEventListener("message",        ()=>{cc.step(4);chat.send("bbbbbbbbb");});
+                chat.addEventListener("lost",           ()=>{cc.step(5);});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                await ttx.tx("TESTTEST");
+                await chat.waitSendAS();
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(9);
+                cc.complete(9);
+            }
+            if(true){
+                let cc=new CheckPoint("lostイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step(6);});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step(7);});
+                chat.addEventListener("detected",       ()=>{cc.step(4);});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step(5);chat.send("bbbbbbbbb");});
+                chat.addEventListener("close",          ()=>{cc.step(8);});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                await ttx.tx("TES");
+                await sleep(1000);
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(9);
+                cc.complete(9);
+            }
+            
+            if(true){
+                let cc=new CheckPoint("closeイベントの中でsendする。").info();
+                let c1=0;
+                let c2=0;
+                cc.step(0);
+                let chat=new tbsk.misc.EasyChat();
+                cc.step(1);
+                chat.addEventListener("open",           ()=>{cc.step(3);});
+                chat.addEventListener("sendstart",      ()=>{cc.step();});
+                chat.addEventListener("sendcompleted",   ()=>{cc.step();});
+                chat.addEventListener("detected",       ()=>{cc.step(4);});
+                chat.addEventListener("message",        ()=>{cc.step();});
+                chat.addEventListener("lost",           ()=>{cc.step(5);});
+                chat.addEventListener("close",          ()=>{cc.step(6);cc.catchException(()=>{chat.send("bbbbbbbbb");})});
+                chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+                cc.step(2);
+                await chat.waitOpenAS();
+                await ttx.tx("TES");
+                await sleep(1000);
+                chat.close();
+                await chat.waitCloseAS();
+                cc.step(7);
+                cc.complete(7);
+            }
+            */
+
+
+
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        };
+
         try{
             fn();
         }catch(e){
             console.log(e);
         }
-    })*/
 
-    $("#test4").on("click",()=>{
+
+    });
+
+    $("#test5").on("click",()=>{
         async function fn(){
 
 /*
