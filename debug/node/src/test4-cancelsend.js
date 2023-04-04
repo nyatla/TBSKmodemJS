@@ -27,7 +27,6 @@ export function test4_cancelsend(tbsk)
         //
         //  cancelSend
         //
-        /*
         if(true){
             let cc=new CheckPoint("open後にすぐにcancelする。").info();
             cc.step(0);
@@ -150,7 +149,7 @@ export function test4_cancelsend(tbsk)
                 chat.cancelSend();
             });//何も起こらない
             chat.addEventListener("sendstart",      ()=>{cc.dontcalled();});
-            chat.addEventListener("sendcomplete",   ()=>{cc.dontcalled();});
+            chat.addEventListener("sendcompleted",   ()=>{cc.dontcalled();});
             chat.addEventListener("detected",       ()=>{cc.dontcalled();});
             chat.addEventListener("message",        ()=>{cc.dontcalled();});
             chat.addEventListener("lost",           ()=>{cc.dontcalled();});
@@ -163,7 +162,7 @@ export function test4_cancelsend(tbsk)
             await sleep(100);
             await chat.waitCloseAS();
             cc.complete(5);
-        }
+        }        
         if(true){
             let cc=new CheckPoint("送信直後にcloseイベントの中でcancelする").info();
             cc.step(0);
@@ -171,54 +170,7 @@ export function test4_cancelsend(tbsk)
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.dontcalled();});
-            chat.addEventListener("sendcomplete",   ()=>{cc.dontcalled();});
-            chat.addEventListener("detected",       ()=>{cc.step();});
-            chat.addEventListener("message",        ()=>{cc.step();});
-            chat.addEventListener("lost",           ()=>{cc.step();});
-            chat.addEventListener("close",          ()=>{cc.step(5);cc.catchException(()=>{chat.cancelSend();})});
-            chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
-            cc.step(2);
-            await chat.waitOpenAS();
-            chat.send("aaaaaaaaaa");
-            chat.close();
-            cc.step(4);
-            await sleep(100);
-            await chat.waitCloseAS();
-            cc.complete(5);
-        }
-        if(true){
-            let cc=new CheckPoint("送信直後にopenイベントの中でcancelする").info();
-            cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
-            cc.step(1);
-            chat.addEventListener("open",           ()=>{
-                cc.step(3);
-                chat.send("aaaaaaaaaa");
-                chat.cancelSend();
-            });//何も起こらない
-            chat.addEventListener("sendstart",      ()=>{cc.dontcalled();});
-            chat.addEventListener("sendcomplete",   ()=>{cc.dontcalled();});
-            chat.addEventListener("detected",       ()=>{cc.dontcalled();});
-            chat.addEventListener("message",        ()=>{cc.dontcalled();});
-            chat.addEventListener("lost",           ()=>{cc.dontcalled();});
-            chat.addEventListener("close",          ()=>{cc.step(5);});
-            chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
-            cc.step(2);
-            await sleep(100);
-            chat.close();
-            cc.step(4);
-            await sleep(100);
-            await chat.waitCloseAS();
-            cc.complete(5);
-        }
-        if(true){
-            let cc=new CheckPoint("送信直後にcloseイベントの中でcancelする").info();
-            cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
-            cc.step(1);
-            chat.addEventListener("open",           ()=>{cc.step(3);});
-            chat.addEventListener("sendstart",      ()=>{cc.dontcalled();});
-            chat.addEventListener("sendcomplete",   ()=>{cc.dontcalled();});
+            chat.addEventListener("sendcompleted",   ()=>{cc.dontcalled();});
             chat.addEventListener("detected",       ()=>{cc.step();});
             chat.addEventListener("message",        ()=>{cc.step();});
             chat.addEventListener("lost",           ()=>{cc.step();});
@@ -259,7 +211,7 @@ export function test4_cancelsend(tbsk)
             cc.complete(7);
         }
         if(true){
-            let cc=new CheckPoint("送信直後にsendcompleteイベントの中でcancelする").info();
+            let cc=new CheckPoint("送信直後にsendcompletedイベントの中でcancelする").info();
             cc.step(0);
             let chat=new tbsk.misc.EasyChat();
             cc.step(1);
@@ -282,29 +234,7 @@ export function test4_cancelsend(tbsk)
             cc.complete(7);
         }
         if(true){
-            let cc=new CheckPoint("送信直後にsendcompleteイベントの中でcancelする").info();
-            cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
-            cc.step(1);
-            chat.addEventListener("open",           ()=>{cc.step(3);});
-            chat.addEventListener("sendstart",      ()=>{cc.step(4);});
-            chat.addEventListener("sendcompleted",   ()=>{cc.step(5);chat.cancelSend();});
-            chat.addEventListener("detected",       ()=>{cc.step();});
-            chat.addEventListener("message",        ()=>{cc.step();});
-            chat.addEventListener("lost",           ()=>{cc.step();});
-            chat.addEventListener("close",          ()=>{cc.step(7);});
-            chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
-            cc.step(2);
-            await chat.waitOpenAS();
-            chat.send("aaaaaaaaaa");
-            await chat.waitSendAS();
-            chat.close();
-            cc.step(6);
-            await sleep(100);
-            await chat.waitCloseAS();
-            cc.complete(7);
-        }*/
-        if(true){
+            let lc=0;
             let cc=new CheckPoint("detectedでcancelする").info();
             cc.step(0);
             let chat=new tbsk.misc.EasyChat();
@@ -313,7 +243,7 @@ export function test4_cancelsend(tbsk)
             chat.addEventListener("sendstart",      ()=>{cc.step();});
             chat.addEventListener("sendcompleted",   ()=>{cc.step();});
             chat.addEventListener("detected",       ()=>{cc.step(4);chat.cancelSend();});
-            chat.addEventListener("message",        ()=>{cc.step(5);});
+            chat.addEventListener("message",        ()=>{if(lc++==0){cc.step(5);}});
             chat.addEventListener("lost",           ()=>{cc.step(6);});
             chat.addEventListener("close",          ()=>{cc.step(8);});
             chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});

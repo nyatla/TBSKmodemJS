@@ -179,7 +179,6 @@ class RecvThread extends PromiseThread
      * @returns 
      */
     async breakTx(id=undefined){
-//        console.log(">>>>>>>>>>>",id);
         if(id===undefined){
             this._send_q=[];
             await this._tx.txBreak();
@@ -199,6 +198,16 @@ class RecvThread extends PromiseThread
         }
         return false;
     }
+    async breakRx()
+    {
+        const ST=this.ST;
+        if(this._status!=ST.RX_RUNNING){
+            return false;
+        }
+        await this._rx.rxBreak();
+        return true;
+    }
+
     
     /**
      * スレッドを停止します.
@@ -458,7 +467,7 @@ export class EasyChat extends EventTarget
             throw new TbskException("Invalid status:"+this._status);
         }
         //送信キューを削除
-        this._rcvth?.breakTx();
+        this._rcvth?.breakTx();//no-wait
     }
     /**
      * 信号の受信を中断します。
@@ -476,9 +485,8 @@ export class EasyChat extends EventTarget
             //送信、又は受信中以外は例外。
             throw new TbskException("Invalid status:"+this._status);
         }
-        let _t=this;
         //送信キューを削除
-        this._rcvth?.breakRx();
+        this._rcvth?.breakRx();//no-wait
     }
 
 

@@ -17,6 +17,7 @@ import { test3 } from "./test3";
 import { test4_close } from "./test4-close";
 import { test4_send } from "./test4-send";
 import { test4_cancelsend } from "./test4-cancelsend";
+import { test4_cancelrecv } from "./test4-cancelrecv";
 
 
 
@@ -32,7 +33,7 @@ TBSKmodemJS.load().then((tbsk)=>{
     $("#test4_close").on("click",()=>{test4_close(tbsk)});
     $("#test4_send").on("click",()=>{test4_send(tbsk)});
     $("#test4_cancelSend").on("click",()=>{test4_cancelsend(tbsk)});
-//    $("#test4_cancelRecv").on("click",()=>{test4_cancelrecv(tbsk)});
+    $("#test4_cancelRecv").on("click",()=>{test4_cancelrecv(tbsk)});
 
     
     
