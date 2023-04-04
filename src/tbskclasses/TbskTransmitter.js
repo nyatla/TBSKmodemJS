@@ -223,7 +223,7 @@ export class TbskTransmitter extends Disposable
                 await _t._current_tx?.join();
                 return;
             case ST.BREAKING:
-                _t._current_tx?.interrupt();//awaitless
+                //_t._current_tx?.interrupt();//awaitless
                 await _t._current_tx?.join();
                 return;    
             case ST.CLOSED:

@@ -106,8 +106,7 @@ class RecvThread extends PromiseThread
     async run()
     {
         const ST=this.ST;
-        let txlock;
-        let rxlock;
+
 
         while(!this._interrupted){
             this._status=ST.TX_RUNNING;
@@ -121,8 +120,9 @@ class RecvThread extends PromiseThread
                 if(d[3]){
                     d[3](d[0]);
                 }
+//                console.log("TX-START");
                 //開始する前に開始予定の値が削除されていないか確認
-                if(d[0]!=this._send_q[0][0] || this._interrupted){
+                if(this._send_q.length==0 || d[0]!=this._send_q[0][0] || this._interrupted){
                     //nothing to do
                 }else{
                     //開始に変更がなければ開始
@@ -131,8 +131,10 @@ class RecvThread extends PromiseThread
                     await this._tx.tx(d[1],d[2]);
                     this._current_tx_id=undefined;
                 }
+//                console.log("TX-END");
                 //完了の通知
                 if(d[4]){
+//                    console.log("OOPS");
                     d[4](d[0]);//complete callback
                 }
             }
@@ -166,7 +168,7 @@ class RecvThread extends PromiseThread
             );
         }
         this._tx_lock.release();//TXロックをリリース.
-        console.log("TASK CLOSED!");
+//        console.log("TASK CLOSED!");
         this._st=ST.CLOSED;
     }
 
@@ -176,10 +178,11 @@ class RecvThread extends PromiseThread
      * @param {number|undefined} id 
      * @returns 
      */
-    async breakTx(id){
+    async breakTx(id=undefined){
+//        console.log(">>>>>>>>>>>",id);
         if(id===undefined){
-            await this._tx.txBreak();
             this._send_q=[];
+            await this._tx.txBreak();
             return true;
         }
         if(id==this._current_tx_id){
@@ -366,6 +369,7 @@ export class EasyChat extends EventTarget
                     return _t._rx.close();
                 }).then(()=>{
                     _t._status=ST.CLOSED;
+//                    console.log("CLOSE-EVENT");
                     let event = new CustomEvent("close",{detail: {}});
                     _t.dispatchEvent(event);                    
                 });
@@ -432,13 +436,55 @@ export class EasyChat extends EventTarget
                 _t.dispatchEvent(event);   
             },
             (id)=>{
+                console.log("DO COMPLETE");
                 let event = new TxEvent("sendcompleted",id);
                 _t.dispatchEvent(event);   
             });
     }
-    sendBreak(){
-
+    /**
+     * 信号の送信を中断します。
+     */
+    cancelSend(){
+        //close実行中は例外。
+        if(this._colsing_now){
+            throw new TbskException();
+        }
+        let ST=EasyChat.ST;
+        switch(this._status){
+        case ST.WORKING:
+            break;
+        default:
+            //送信、又は受信中以外は例外。
+            throw new TbskException("Invalid status:"+this._status);
+        }
+        //送信キューを削除
+        this._rcvth?.breakTx();
     }
+    /**
+     * 信号の受信を中断します。
+     */
+    cancelRecv(){
+        //close実行中は例外。
+        if(this._colsing_now){
+            throw new TbskException();
+        }
+        let ST=EasyChat.ST;
+        switch(this._status){
+        case ST.WORKING:
+            break;
+        default:
+            //送信、又は受信中以外は例外。
+            throw new TbskException("Invalid status:"+this._status);
+        }
+        let _t=this;
+        //送信キューを削除
+        this._rcvth?.breakRx();
+    }
+
+
+
+
+
     /**
      * @async
      * 既に実行したcloseが完了するまで待ちます。
