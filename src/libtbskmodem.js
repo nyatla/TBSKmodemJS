@@ -11,7 +11,7 @@ import { TbskModulator } from "./tbskclasses/TbskModulator";
 import { TbskDemodulator } from "./tbskclasses/TbskDemodulator";
 import { TbskListener } from "./tbskclasses/TbskListener";
 import { CustomTone,SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
-import { EasyChat} from "./misc/EasyChat";
+import { EasyChat as TbskSocket} from "./misc/TbskSocket";
 
 
 // @ts-check
@@ -87,10 +87,10 @@ export class TBSKmodemJS
             AudioPlayer:AudioPlayer,
         };
         this.misc={
-            /** @class {@link EasyChat} */
-            EasyChat:class extends EasyChat{
+            /** @class {@link TbskSocket} */
+            TbskSocket:class extends TbskSocket{
                 /**
-                 * {@link EasyChat}のエイリアスです。
+                 * {@link TbskSocket}のエイリアスです。
                  * @param {Object} options
                  * @param {number=}      options.carrier
                  * 搬送波周波数です。

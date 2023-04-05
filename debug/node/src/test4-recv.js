@@ -6,7 +6,7 @@ import {TBSKmodemJS} from "../../../src/libtbskmodem.js"
 import { XPskSinTone } from "../../../src/tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../../../src/tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "../../../src/tbskclasses/TbskReceiver";
-import { EasyChat } from "../../../src/misc/EasyChat";
+import { EasyChat } from "../../../src/misc/TbskSocket";
 
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
@@ -28,7 +28,7 @@ export function test4_recv(tbsk)
             let lc=0;
             let cc=new CheckPoint("bin値を送る").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat({decoder:"bin"});
+            let chat=new tbsk.misc.TbskSocket({decoder:"bin"});
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -49,7 +49,7 @@ export function test4_recv(tbsk)
             let lc=0;
             let cc=new CheckPoint("bin値を送る").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat({decoder:"utf8"});
+            let chat=new tbsk.misc.TbskSocket({decoder:"utf8"});
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
