@@ -238,54 +238,60 @@ class RecvThread extends PromiseThread
 
 
 /**
- * 簡易的な半二重通信チャットインタフェイスです。
+ * TBSK変調の音波通信で実装した半二重通信ソケットです。
  * 各種操作の応答はイベントで通知します。
  * 
  * @event close
- *  回線が閉じた時
+ *  回線が閉じた時に発生します。
  * @event error
- *  修復不能なエラーが発生したとき
+ *  修復不能なエラーが発生したときに発生します。
  * @event sendstart
- *  送信を開始しようとするとき。
+ *  送信を開始しようとする時に発生します。
  * @property {number} sendstart.id - send関数で受け取った送信id
  * @event sendcompleted
- *  送信が完了したとき.このイベントは、sendstartとセットで呼び出されます。
+ *  送信が完了した時に発生します。このイベントは、sendstartとセットで呼び出されます。
  * @property {number} sendstart.id - send関数で受け取った送信id
  * @event detected
- *  信号を検出した場合
+ *  受信イベントです。信号を検出した時に発生します。
  * @property {number} detected.id - 受信id
  * @event message
- *  信号を取得した時.このイベントは、detectedからlostまでの間で呼び出されます。
+ *  受信イベントです。復調値が確定するたびに呼び出されます。このイベントは、detectedからlostまでの間で呼び出されます。
  * @property {number} message.id - 受信id
  * @property {string|[number]} message.data - 受信値
  * @event lost
- * パケットを受信し終わった時.このイベントは、detectedとセットで呼び出されます。
+ * パケットを受信し終わった時に呼び出されます。このイベントは、detectedとセットで呼び出されます。
  * @property {number} lost.id - 受信id
  * 
  */
 export class EasyChat extends EventTarget
 {
-    /**
-     * @event open  回線が利用になったとき
-     */
-
-
     static ST={
         CLOSED  :0, //閉じている
         OPENNING:1, //OPENが実行中
         WORKING:3, //受信中
     
     
-    };;
+    };
+    /**
+     * ソケットの状態値を返します。
+     */
     get status(){return this._status;};
     /**
+     * 通信ソケット生成して、送受信の準備をします。
+     * 実行が完了するとopenイベントを呼び出します。
      * @param {any} mod
+     * TBSKModemのWASMインタフェイスオブジェクトです。
      * @param {Object} options
-     * @param {number}      options.carrier
-     * @param {string}      options.decoder
-     * @param {TraitTone}   options.tone
-     * @param {number}      options.preamble_cycle
-     * @param {boolean}     options.stop_symbol
+     * @param {number=}      options.carrier
+     * 搬送波周波数です。
+     * @param {string=}      options.decoder
+     * ペイロードのエンコーディングを指定します。"utf8","bin"が利用できます。省略時は"bin"です。
+     * @param {TraitTone=}   options.tone
+     * トーン信号を指定します。省略時はXPskSine(10,10)です。
+     * @param {number=}      options.preamble_cycle
+     * プリアンブルの設定値です。省略時は4です。
+     * @param {boolean=}     options.stop_symbol
+     * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
      */
     constructor(mod,options)
     {
@@ -308,7 +314,7 @@ export class EasyChat extends EventTarget
             async function open(eventtarget){
                 let err=undefined;
                 try{
-                    await rx.open(carrier);
+                    await rx.open(carrier,decoder);
                     try{
                         await tx.open(rx.audioContext,carrier);
                     }catch(e){
@@ -359,6 +365,10 @@ export class EasyChat extends EventTarget
             default_tone.dispose();
         }
     }
+    /**
+     * ソケットを閉じます。
+     * @returns 
+     */
     close()
     {
         let _t=this;

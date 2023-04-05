@@ -274,6 +274,7 @@ export class TbskReceiver extends Disposable
     /**
      * Audioデバイスの準備ができるまで待ちます。
      * @param {number} carrier
+     * @param {string|undefined} decoder
      * @returns {Promise}
      * ステータス異常の場合はrejectします。
      */
@@ -285,7 +286,9 @@ export class TbskReceiver extends Disposable
             throw new TbskException();
         }
         let audio_input=new AudioInput(carrier);
-        this._decoder= decoder == "utf8" ? new Utf8Decoder() : new PassDecoder();
+        const dectbl={"utf8":Utf8Decoder,"bin":PassDecoder};
+        
+        this._decoder=(decoder && decoder in dectbl)?new dectbl[decoder]:new PassDecoder();
 
         /** @type {?} */
         _t._status=ST.OPENING;

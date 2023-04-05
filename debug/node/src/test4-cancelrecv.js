@@ -306,6 +306,31 @@ export function test4_cancelrecv(tbsk)
             cc.complete(8);
         }
         //受信中にBreakするテストを追加して
+        if(true){
+            let lc=0;
+            let cc=new CheckPoint("lostでcancelする").info();
+            cc.step(0);
+            let chat=new tbsk.misc.EasyChat();
+            cc.step(1);
+            chat.addEventListener("open",           ()=>{cc.step(3);});
+            chat.addEventListener("sendstart",      ()=>{cc.step();});
+            chat.addEventListener("sendcompleted",   ()=>{cc.step();});
+            chat.addEventListener("detected",       ()=>{cc.step(4);});
+            chat.addEventListener("message",        (e)=>{if(lc++==0){cc.step(5);chat.cancelRecv();}console.log(e.id,e.data);});
+            chat.addEventListener("lost",           ()=>{cc.step(6);});
+            chat.addEventListener("close",          ()=>{cc.step(7);});
+            chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+            cc.step(2);
+            await chat.waitOpenAS();
+            ttx.tx("AHAAAAAAAAAAAAAAAAAAA");
+            await sleep(300);
+            chat.cancelRecv();
+            chat.close();
+            await chat.waitCloseAS();
+            cc.step(8);
+            await sleep(100);
+            cc.complete(8);
+        }
 
 
     }

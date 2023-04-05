@@ -90,7 +90,18 @@ export class TBSKmodemJS
             /** @class {@link EasyChat} */
             EasyChat:class extends EasyChat{
                 /**
-                 * {@link EasyChat}クラスのエイリアスです。
+                 * {@link EasyChat}のエイリアスです。
+                 * @param {Object} options
+                 * @param {number=}      options.carrier
+                 * 搬送波周波数です。
+                 * @param {string=}      options.decoder
+                 * ペイロードのエンコーディングを指定します。"utf8","bin"が利用できます。省略時は"bin"です。
+                 * @param {TraitTone=}   options.tone
+                 * トーン信号を指定します。省略時はXPskSine(10,10)です。
+                 * @param {number=}      options.preamble_cycle
+                 * プリアンブルの設定値です。省略時は4です。
+                 * @param {boolean=}     options.stop_symbol
+                 * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
                  */
                 constructor(options=undefined){
                     super(...[wasm].concat([options]));
