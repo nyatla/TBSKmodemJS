@@ -102,6 +102,7 @@ class RecvThread extends PromiseThread
         if(this._st==ST.TX_RUNNING || this._send_q.length>0){
             await this._tx_lock.wait();
         }
+        return;
     }
     async run()
     {
@@ -263,7 +264,7 @@ class RecvThread extends PromiseThread
  * @property {number} lost.id - 受信id
  * 
  */
-export class EasyChat extends EventTarget
+export class TbskSocket extends EventTarget
 {
     static ST={
         CLOSED  :0, //閉じている
@@ -296,7 +297,7 @@ export class EasyChat extends EventTarget
     constructor(mod,options)
     {
         super();
-        const ST=EasyChat.ST;
+        const ST=TbskSocket.ST;
         let default_tone=new XPskSinTone(mod,10,10);
         this._status=ST.CLOSED;
         this._colsing_now=false;
@@ -372,7 +373,7 @@ export class EasyChat extends EventTarget
     close()
     {
         let _t=this;
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         //クロージングのフラグを建てる
         if(this._colsing_now){
             return;
@@ -437,7 +438,7 @@ export class EasyChat extends EventTarget
         if(this._colsing_now){
             throw new TbskException();
         }
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         switch(this._status){
         case ST.WORKING:
             break;
@@ -455,7 +456,6 @@ export class EasyChat extends EventTarget
                 _t.dispatchEvent(event);   
             },
             (id)=>{
-                console.log("DO COMPLETE");
                 let event = new TxEvent("sendcompleted",id);
                 _t.dispatchEvent(event);   
             });
@@ -468,7 +468,7 @@ export class EasyChat extends EventTarget
         if(this._colsing_now){
             throw new TbskException();
         }
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         switch(this._status){
         case ST.WORKING:
             break;
@@ -487,7 +487,7 @@ export class EasyChat extends EventTarget
         if(this._colsing_now){
             throw new TbskException();
         }
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         switch(this._status){
         case ST.WORKING:
             break;
@@ -509,7 +509,7 @@ export class EasyChat extends EventTarget
      * @returns 
      */
     async waitCloseAS(){
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         let _t=this;
         if(this._status==ST.CLOSED){
             return;
@@ -531,17 +531,18 @@ export class EasyChat extends EventTarget
         if(this._colsing_now){
             throw new TbskException();
         }
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         if(this._status!=ST.WORKING){
             return;
         }
         await this._rcvth?.waitForTxRunningEnd();
+        return;
     }
     /**
      * openが完了するのを待ちます。
      */
     async waitOpenAS(){
-        let ST=EasyChat.ST;
+        let ST=TbskSocket.ST;
         let _t=this;
         if(this._status!=ST.OPENNING){
             return;
@@ -555,15 +556,26 @@ export class EasyChat extends EventTarget
         await lock.wait();
     }
 
-
-    get baud(){return this._baud;}
-    get carrier(){return this._carrier;}
     get state(){return this._status;}
-
-    
+    /**
+     * ボーレートを返します。
+     */
+    get baud(){return this._baud;}
+    /**
+     * 搬送波周波数を返します。
+     */
+    get carrier(){return this._carrier;}    
     /**
      * 音声入力のRMS値を返します。
      */
     get rms(){return this._rx.rms;};
+    /**
+     * 送信音量を取得します。[0,1]
+     */
+    get volume(){ return this._tx.gain;}
+    /**
+     * 送信音量を指定します。[0,1]
+     */
+    set volume(v){this._tx.gain=v;}
 
 }

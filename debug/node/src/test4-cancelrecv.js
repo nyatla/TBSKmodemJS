@@ -6,7 +6,7 @@ import {TBSKmodemJS} from "../../../src/libtbskmodem.js"
 import { XPskSinTone } from "../../../src/tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../../../src/tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "../../../src/tbskclasses/TbskReceiver";
-import { EasyChat } from "../../../src/misc/TbskSocket";
+import { TbskSocket } from "../../../src/misc/TbskSocket";
 
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";

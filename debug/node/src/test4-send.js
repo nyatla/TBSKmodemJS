@@ -6,7 +6,7 @@ import {TBSKmodemJS} from "../../../src/libtbskmodem.js"
 import { XPskSinTone } from "../../../src/tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../../../src/tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "../../../src/tbskclasses/TbskReceiver";
-import { EasyChat } from "../../../src/misc/TbskSocket";
+import { TbskSocket } from "../../../src/misc/TbskSocket";
 
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
@@ -27,7 +27,7 @@ export function test4_send(tbsk)
         if(true){
             let cc=new CheckPoint("open後にすぐにsendする。").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -46,7 +46,7 @@ export function test4_send(tbsk)
         if(true){
             let cc=new CheckPoint("openをした後でsendする。").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step(4);});
@@ -69,7 +69,7 @@ export function test4_send(tbsk)
         if(true){
             let cc=new CheckPoint("openイベントの中でsendする。").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);chat.send("aaaa");});
             chat.addEventListener("sendstart",      ()=>{cc.step(4);});
@@ -93,7 +93,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step([4,6][c1++]);if(c1<2){chat.send("aaaa");}});
@@ -117,7 +117,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step([4,6][c1++]);});
@@ -141,7 +141,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step(6);});
@@ -165,7 +165,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step(6);});
@@ -189,7 +189,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step(6);});
@@ -214,7 +214,7 @@ export function test4_send(tbsk)
             let c1=0;
             let c2=0;
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -233,6 +233,34 @@ export function test4_send(tbsk)
             cc.step(7);
             cc.complete(7);
         }
+        if(true){
+            let cc=new CheckPoint("音量調整テスト").info();
+            let chat=new tbsk.misc.TbskSocket();
+            await chat.waitOpenAS();
+            chat.volume=1;
+            cc.step(0);
+            chat.send("ABCDEFG");
+            cc.step(1);
+            await chat.waitSendAS();
+            cc.step(2);
+            chat.volume=0.3;
+            chat.send("ABCDEFG");
+            cc.step(3);
+            await chat.waitSendAS();
+            cc.step(4);
+            chat.close();
+            cc.step(5);
+            await chat.waitCloseAS();
+            cc.complete(5);
+        }
+        
+
+
+
+
+
+
+
         console.log("END!");
 
     };

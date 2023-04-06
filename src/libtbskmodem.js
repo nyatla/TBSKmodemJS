@@ -11,7 +11,7 @@ import { TbskModulator } from "./tbskclasses/TbskModulator";
 import { TbskDemodulator } from "./tbskclasses/TbskDemodulator";
 import { TbskListener } from "./tbskclasses/TbskListener";
 import { CustomTone,SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
-import { EasyChat as TbskSocket} from "./misc/TbskSocket";
+import { TbskSocket} from "./misc/TbskSocket";
 
 
 // @ts-check

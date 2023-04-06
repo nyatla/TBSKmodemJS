@@ -7,10 +7,11 @@
  * wait関数で待機すると、releaseが実行されるまでブロックします。
  */
 export class PromiseLock{
-    constructor(){
+    constructor()
+    {
         this._resolver=undefined;
         let _t=this;
-        _t._p=new Promise((resolve)=>{_t._resolver=resolve})
+        this._p=new Promise((resolve)=>{_t._resolver=resolve})
     }
     /**
      * releaseが呼ばれるまで待機する。
@@ -18,20 +19,16 @@ export class PromiseLock{
      */
     async wait()
     {
-        if(this._p){
-            await this._p;
-            //@ts-ignore
-            this._p=undefined;
-        }
+        await this._p;
     }
     /**
      * 状態を初期化します。
      * wait状態のロックは全てリリースされ、新しいPromiseにロックします。
      */
     reset(){
+        this._resolver();
         let _t=this;
-        _t._resolver();
-        _t._p=new Promise((resolve)=>{_t._resolver=resolve})
+        this._p=new Promise((resolve)=>{_t._resolver=resolve;})
     }
 
     /**

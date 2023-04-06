@@ -6,7 +6,7 @@ import {TBSKmodemJS} from "../../../src/libtbskmodem.js"
 import { XPskSinTone } from "../../../src/tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../../../src/tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "../../../src/tbskclasses/TbskReceiver";
-import { EasyChat } from "../../../src/misc/TbskSocket";
+import { TbskSocket } from "../../../src/misc/TbskSocket";
 
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
@@ -284,6 +284,7 @@ export function test4_cancelsend(tbsk)
         }
         if(true){
             let cc=new CheckPoint("messageでcancelする").info();
+            let lc=0;
             cc.step(0);
             let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
@@ -291,7 +292,7 @@ export function test4_cancelsend(tbsk)
             chat.addEventListener("sendstart",      ()=>{cc.step();});
             chat.addEventListener("sendcompleted",   ()=>{cc.step();});
             chat.addEventListener("detected",       ()=>{cc.step(4);});
-            chat.addEventListener("message",        ()=>{cc.step(5);});
+            chat.addEventListener("message",        ()=>{if(lc++==0){cc.step(5);}});
             chat.addEventListener("lost",           ()=>{cc.step(6);chat.cancelSend();});
             chat.addEventListener("close",          ()=>{cc.step(8);});
             chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});

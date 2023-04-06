@@ -1,11 +1,12 @@
 //@ts-check
 
-import { TbskException } from "../utils/classes";
+import { Disposable, TbskException } from "../utils/classes";
 import { TBSK_ASSERT } from "../utils/functions";
 import { PromiseLock } from "../utils/promiseutils";
 
 /**
- * Audioバッファを一度だけ再生するプレイヤーです。
+ * 1個のAudioバッファを再生するプレイヤーです。
+ * 使い終わったらcloseを実行してください。
  */
 export class AudioPlayer
 {
@@ -13,34 +14,60 @@ export class AudioPlayer
 		IDLE:1,
 		PLAYING:2,
 		STOPWAIT:3,
-		END:4
+		CLOSED:4
 	}
 	/**
 	 * @param {AudioContext} actx 
-	 * @param {AudioBuffer} audio_buffer 
 	 */
-	constructor(actx,audio_buffer)
+	constructor(actx)
 	{
-		let _t=this;
-		_t._actx=actx;
-		let src= _t._actx.createBufferSource();
-		src.buffer=audio_buffer;
-		src.connect(_t._actx.destination);
-		/** @type  {AudioBufferSourceNode}*/
-		_t._src=src;
-		/** @type {any} */
-		_t._stop_resolver=undefined;
-		_t._status=AudioPlayer.ST.IDLE;
+		let gain=actx.createGain();
+		gain.connect(actx.destination);
+		this._actx=actx;
+		this._status=AudioPlayer.ST.IDLE;
+		/**@type {GainNode} */
+		this._gain=gain;
+		/** @type  {AudioBufferSourceNode|undefined}*/
+		this._src=undefined;
 	}
+	close(){
+		const ST=AudioPlayer.ST;
+		let _t=this;
+		async function fn(){
+			if(_t._status!=ST.CLOSED){
+				await _t.stop();//nowait
+				if(_t._src){
+					_t._src.disconnect();
+					_t._src=undefined;
+				}	
+				_t._gain.disconnect();
+				_t._status=ST.CLOSED;
+			}	
+		}
+		fn();//no-wait async!
+	}
+	/**
+	 * 音量を設定。
+	 * [0,1]の値
+	 */
+	set gain(v){
+		this._gain.gain.value=v;
+	}
+	get gain(){
+		return this._gain.gain.value;
+	}
+	
 	get isPlaying(){
 		return this._status==AudioPlayer.ST.PLAYING;
 	}
 	/**
 	 * @async
 	 * コンテンツを再生します。
+	 * @param {AudioBuffer} audio_buffer 
 	 * @returns {Promise<void>}
+	 * 再生が終わると完了します。
 	 */
-	async play()
+	async play(audio_buffer)
     {
 		let _t=this;
 		const ST=AudioPlayer.ST;
@@ -50,23 +77,34 @@ export class AudioPlayer
 		}
 		_t._status=ST.PLAYING;
 		_t._play_lock=new PromiseLock();
-		_t._src.start();
-		_t._actx.addEventListener("statechange",()=>{
-			if(_t._actx.state!="running" && _t._status!=ST.END){
+		let actx=this._actx;
+		let src= actx.createBufferSource();
+		src.buffer=audio_buffer;
+		src.connect(_t._gain);
+		src.start();
+		let ended_event=()=>{
+			if([ST.PLAYING,ST.STOPWAIT].includes(_t._status)){
 				_t._play_lock?.release();
-				_t._status=ST.END;
+				_t._status=ST.IDLE;
+				src.disconnect();
+				src.removeEventListener("ended",ended_event);
 			}
-		});
-		_t._src.addEventListener("ended",()=>{
-			if(_t._status!=ST.END){
+		};
+		let statechange_event=()=>{
+			if(actx.state!="running" && [ST.PLAYING,ST.STOPWAIT].includes(_t._status)){
 				_t._play_lock?.release();
-				_t._status=ST.END;
+				_t._status=ST.IDLE;
+				src.disconnect();
+				src.removeEventListener("statechange",statechange_event);
 			}
-		});
+		};		
+		actx.addEventListener("statechange",statechange_event);
+		src.addEventListener("ended",ended_event);
+		_t._src=src;
 		//console.log("PLAY1",this._status);
 		await _t._play_lock?.wait();
 		//console.log("PLAY2",this._status);
-		TBSK_ASSERT(_t._status==ST.END);
+		TBSK_ASSERT(_t._status==ST.IDLE);
 		return;
 	}
 	/**
@@ -82,15 +120,16 @@ export class AudioPlayer
 		let _t=this;
 		switch(_t._status){
 		case ST.PLAYING:
-			this._src.stop();
+			this._src?.stop();
 			_t._status=ST.STOPWAIT;
 			await _t._play_lock?.wait();
 			return;
 		case ST.STOPWAIT:
 			await _t._play_lock?.wait();
-			throw new TbskException();
-		case ST.END:
 			return;
+		case ST.IDLE:
+			return;
+		case ST.CLOSED:
 		default:
 			throw new TbskException();
 		}

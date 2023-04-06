@@ -6,7 +6,7 @@ import {TBSKmodemJS} from "../../../src/libtbskmodem.js"
 import { XPskSinTone } from "../../../src/tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../../../src/tbskclasses/TbskTransmitter";
 import { TbskReceiver } from "../../../src/tbskclasses/TbskReceiver";
-import { EasyChat } from "../../../src/misc/TbskSocket";
+import { TbskSocket } from "../../../src/misc/TbskSocket";
 
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
@@ -27,7 +27,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("open後にすぐにcloseする。").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(4);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -46,7 +46,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("openをした後でcloseする。").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -66,7 +66,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("openイベントの中でcloseする").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);chat.close();});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -86,7 +86,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("closeイベントの中でcloseする").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -107,7 +107,7 @@ export function test4_close(tbsk)
             let cc=new CheckPoint("sendstartイベントの中でcloseする").info();
             let STEP=(p,m)=>{cc.step(p,m);}
             STEP(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             STEP(1);
             chat.addEventListener("open",           ()=>{STEP(3);});
             chat.addEventListener("sendstart",      ()=>{STEP(5,"IN");chat.close();});
@@ -129,7 +129,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("sendcompletedイベントの中でcloseする").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step(5);});
@@ -151,7 +151,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("detectedイベントの中でcloseする").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             chat.addEventListener("open",           ()=>{cc.step(2);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
             chat.addEventListener("sendcompleted",  ()=>{cc.step();});
@@ -170,7 +170,7 @@ export function test4_close(tbsk)
         if(true){
             let cc=new CheckPoint("messageイベントの中でcloseする").info();
             cc.step(0);
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             chat.addEventListener("open",           ()=>{cc.step(2);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
             chat.addEventListener("sendcompleted",  ()=>{cc.step();});
@@ -190,7 +190,7 @@ export function test4_close(tbsk)
             let cc=new CheckPoint("closeイベントの中でcloseする").info();
             cc.step(0);
             let rcv="";
-            let chat=new tbsk.misc.EasyChat();
+            let chat=new tbsk.misc.TbskSocket();
             chat.addEventListener("open",           ()=>{cc.step(2);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
             chat.addEventListener("sendcompleted",  ()=>{cc.step();});

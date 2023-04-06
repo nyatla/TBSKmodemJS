@@ -45,6 +45,7 @@ export class TbskTransmitter extends Disposable
         this._status=ST.CLOSED;
         this._current_tx=undefined;
         this._closing_lock=undefined;
+        this._player=undefined;
      
         this._mod=new TbskModulator(mod,tone,preamble_cycle);
     }
@@ -53,9 +54,13 @@ export class TbskTransmitter extends Disposable
         if(this._status==ST.CLOSED){
             return;
         }
+        if(this._player){
+            this._player.close();
+            this._player=undefined;
+        }
         this.close().then(()=>{
-            this._mod.dispose();}
-        );
+            this._mod.dispose();
+        });
     }    
     /**
      * 送信ポートを開きます。
@@ -73,6 +78,7 @@ export class TbskTransmitter extends Disposable
         this._actx=actx;
         this._sample_rate=carrier;
         this._status=ST.IDLE;
+        this._player=new AudioPlayer(actx);
         return;
     }
     /**
@@ -89,6 +95,8 @@ export class TbskTransmitter extends Disposable
             _t._status=ST.CLOSING;
             //nothing to do
             _t._status=ST.CLOSED;
+            _t._player?.close();
+            _t._player=undefined;
             _t._actx=undefined;
             return;
         case ST.BREAKING:
@@ -98,6 +106,9 @@ export class TbskTransmitter extends Disposable
             await _t._current_tx?.join();//BREAK待ち
             TBSK_ASSERT(_t._status==ST.CLOSING);//変更しないこと
             _t._status=ST.CLOSED;
+            _t._player?.close();
+            _t._player=undefined;
+            _t._actx=undefined;
             //@ts-ignore
             _t._closing_lock.release();
             _t._closing_lock=undefined;
@@ -113,7 +124,18 @@ export class TbskTransmitter extends Disposable
     get audioContext(){
         return this._actx;
     }
-
+    set gain(v){
+        if(!this._player){
+            throw new TbskException();
+        }
+        this._player.gain=v;
+    }
+    get gain(){
+        if(!this._player){
+            throw new TbskException();
+        }
+        return this._player.gain;
+    }
 
     /**
      * tx関数が実行可能な状態かを返します。
@@ -154,17 +176,15 @@ export class TbskTransmitter extends Disposable
         }
         //always IDLE
         class PlayerTask extends PromiseThread{
-            constructor(actx,buf){
+            constructor(player,buf){
                 super();
-                this._player=new AudioPlayer(actx,buf);
+                this._player=player;
                 this._interrupted=false;
+                this._buf=buf;
             }
             async run(){
-//                console.log("RUN1");
-                await this._player.play();
-//                console.log("RUN2");
+                await this._player.play(this._buf);
                 await sleep(10);
-//                console.log("RUN3");
                 return;
             }
             async interrupt(){
@@ -175,9 +195,7 @@ export class TbskTransmitter extends Disposable
                 this._interrupted=true;
                 await this._player.stop();
                 return;
-
             }
-
         }
         let actx=_t._actx;
         let mod=_t._mod;
@@ -186,7 +204,7 @@ export class TbskTransmitter extends Disposable
         let buf = actx.createBuffer(1, f32_array.length,_t._sample_rate);
         buf.getChannelData(0).set(f32_array);
 
-        let task=new PlayerTask(actx,buf);
+        let task=new PlayerTask(this._player,buf);
         _t._status=ST.SENDING;
         _t._current_tx=task;
 //        console.log("TX start");
