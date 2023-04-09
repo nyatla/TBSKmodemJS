@@ -1,8 +1,37 @@
 //@ts-check
 
+import { TBSKmodemJS } from "../../../src/libtbskmodem";
+import { StopIteration } from "../../../src/tbskclasses/StopIteration";
+import { IPacketConverter } from "../../../src/utils/packetconverter";
+
 const jQuery = require("jquery");
 
 
+export class CountUpConverter extends IPacketConverter
+{
+    constructor(){
+        super("CountUpDecoder");
+        this._c=0;
+    }
+    reset(){}
+    put(data){
+        this._c++;
+        return 1;
+    }
+    next(){
+        if(this._c>0){
+            return this._c--;
+        }
+        throw new StopIteration();
+
+    }
+}
+
+
+/**
+ * 
+ * @param {TBSKmodemJS} tbsk 
+ */
 export function test1(tbsk)
 {
     //生成チェック
@@ -24,19 +53,10 @@ export function test1(tbsk)
             var tone = new tbsk.XPskSinTone(10,10);
             var mod=new tbsk.TbskModulator(tone);
             var demod=new tbsk.TbskDemodulator(tone);
-            var modem= new tbsk.TbskModem();
-            try{
-                console.log(modem.status);
-                await modem.open();
-                console.log(modem.status);
-                await modem.close();
-            }catch(e){
-                console.log(e);
-            }
+
             var listener=new tbsk.TbskListener(tone);
             mod.dispose();
             demod.dispose();
-            modem.dispose();
             listener.dispose();
             tone.dispose();
         }
@@ -56,10 +76,18 @@ export function test1(tbsk)
             var mod=new tbsk.TbskModulator(tone);
             //        let d=mod.modulate("Hello");
             let d=mod.modulate([56,58,57,2,5,88,5,8,5,66,24,58,56]);
+            let ds=mod.modulate("HelloWorld!");
             let demod=new tbsk.TbskDemodulator(tone);
-            let dint = demod.demodulate(d);
-            let dstr = demod.demodulate(d,"utf8");
-            console.log("ret",dint,dstr);
+            console.log("A",demod.demodulate(d));
+            console.log("B",demod.demodulateAsStr(ds));
+            let conv=new CountUpConverter();
+            let demod2=new tbsk.TbskDemodulator(tone,1,4,conv);
+            console.log("C",demod2.demodulate(d));
+//            console.log("D",demod2.demodulateAsStr(ds));
+
+
+
+
             tone.dispose();
             mod.dispose();
             demod.dispose();

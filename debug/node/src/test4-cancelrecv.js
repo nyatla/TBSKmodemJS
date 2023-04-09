@@ -331,6 +331,7 @@ export function test4_cancelrecv(tbsk)
             await sleep(100);
             cc.complete(8);
         }
+        console.log("END!");
 
 
     }

@@ -11,6 +11,27 @@ import { TbskSocket } from "../../../src/misc/TbskSocket";
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
 import {TEST,CheckPoint} from "./header"
+import { IPacketConverter } from "../../../src/utils/packetconverter.js";
+
+
+export class CountUpConverter extends IPacketConverter
+{
+    constructor(){
+        super("CountUpDecoder");
+    }
+    reset(){}
+    convert(data){
+        console.log("CALLED");
+        if(!data){
+            return [];
+        }
+        let r=[];
+        for(let i=0;i<data.length;i++){
+            r.push(45+i);
+        }
+        return r;
+    }
+}
 
 const jQuery = require("jquery");
 /**
@@ -28,7 +49,7 @@ export function test4_recv(tbsk)
             let lc=0;
             let cc=new CheckPoint("bin値を送る").info();
             cc.step(0);
-            let chat=new tbsk.misc.TbskSocket({decoder:"bin"});
+            let chat=new tbsk.misc.TbskSocket({encoding:"bin"});
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -49,7 +70,7 @@ export function test4_recv(tbsk)
             let lc=0;
             let cc=new CheckPoint("bin値を送る").info();
             cc.step(0);
-            let chat=new tbsk.misc.TbskSocket({decoder:"utf8"});
+            let chat=new tbsk.misc.TbskSocket({encoding:"utf8"});
             cc.step(1);
             chat.addEventListener("open",           ()=>{cc.step(3);});
             chat.addEventListener("sendstart",      ()=>{cc.step();});
@@ -70,6 +91,33 @@ export function test4_recv(tbsk)
             await chat.waitCloseAS();
             cc.complete(4);
         }
+        if(true){
+            let lc=0;
+            let cc=new CheckPoint("codecを設定して送信").info();
+            cc.step(0);
+            let chat=new tbsk.misc.TbskSocket({encoding:"utf8",packet:{decoder:new CountUpConverter()}});
+            chat.addEventListener("open",           ()=>{cc.step();});
+            chat.addEventListener("sendstart",      ()=>{cc.step();});
+            chat.addEventListener("sendcompleted",   ()=>{cc.step();});
+            chat.addEventListener("detected",       ()=>{cc.step();});
+            chat.addEventListener("message",        (e)=>{console.log(e.id,e.data)});
+            chat.addEventListener("lost",           ()=>{cc.step();});
+            chat.addEventListener("close",          ()=>{cc.step();});
+            chat.addEventListener("error",()=>{console.log("EVENT:ERROR");});
+            await chat.waitOpenAS();
+            await ttx.tx("ABCD");
+            await sleep(500);
+            await ttx.tx("EFGH");
+            await sleep(500);
+
+            chat.close();
+            await chat.waitCloseAS();
+            cc.complete(0);
+        }
+
+
+
+        console.log("END!");
 
     }
         

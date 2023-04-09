@@ -306,6 +306,7 @@ export function test4_cancelsend(tbsk)
             await chat.waitCloseAS();
             cc.complete(8);
         }
+        console.log("END!");
 
 
 

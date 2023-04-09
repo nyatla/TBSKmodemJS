@@ -1,20 +1,30 @@
 //@ts-check
 
-import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes.js"
-import { TraitTone } from "./TbskTone.js";
+import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes"
+import {IPacketConverter} from "../utils/packetconverter"
+import { StopIteration } from "./StopIteration";
+import { TraitTone } from "./TbskTone";
 
 /**
  * 
  */
 export class TbskModulator extends WasmProxy
 {
+    static DEFAULT_PREAMBLE_CYCLE=4;
     /**
      * @param {*} mod
      * @param {TraitTone} tone
-     * @param {number} preamble_cycle
+     * @param {number|undefined} preamble_cycle
+     * @param {IPacketConverter|undefined} encoder
      */
-    constructor(mod,tone, preamble_cycle = 4) {  
-        super(mod,mod._wasm_tbskmodem_TbskModulator_A(tone._wasm_instance, preamble_cycle));
+    constructor(mod,tone, preamble_cycle = undefined,encoder=undefined) {  
+        super(
+            mod,
+            mod._wasm_tbskmodem_TbskModulator_A(
+            tone._wasm_instance,
+            preamble_cycle!==undefined?preamble_cycle:TbskModulator.DEFAULT_PREAMBLE_CYCLE
+            ));
+        this._encoder=encoder;
     }
     /**
      * @param {array[number]|string} src
@@ -26,11 +36,22 @@ export class TbskModulator extends WasmProxy
         let mod=this._mod;
         var buf = new IntInputIterator(mod);
         try {
+            //srcの型で分岐
+            let ssrc;
             if (typeof (src) == "string") {
-                let te = new TextEncoder();                    
-                buf.puts(te.encode(src));
+                let te = new TextEncoder();
+                ssrc=te.encode(src);//intに変換
             } else {
-                buf.puts(src);
+                ssrc=src;
+            }
+            let encoder=this._encoder;
+            if(encoder){
+                encoder.reset();
+                encoder.puts(ssrc);
+                encoder.put(undefined);//終端指示
+                buf.puts(encoder.toArray());//全部取れるはず
+            }else{
+                buf.puts(ssrc);
             }
             //int*を渡して、[int,float...]のポインタを返してもらう。
             let wi = mod._wasm_tbskmodem_TbskModulator_Modulate(this._wasm_instance, buf._wasm_instance, stopsymbol);

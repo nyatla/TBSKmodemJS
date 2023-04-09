@@ -91,17 +91,26 @@ export class TBSKmodemJS
             TbskSocket:class extends TbskSocket{
                 /**
                  * {@link TbskSocket}のエイリアスです。
-                 * @param {Object} options
-                 * @param {number=}      options.carrier
+                 * 通信ソケット生成して、送受信の準備をします。
+                 * 実行が完了するとopenイベントを呼び出します。
+                 * @param {Object}          [options={}]
+                 * オプションを指定します。
+                 * @param {number}          [options.carrier]
                  * 搬送波周波数です。
-                 * @param {string=}      options.decoder
+                 * @param {string}         [options.encoding]
                  * ペイロードのエンコーディングを指定します。"utf8","bin"が利用できます。省略時は"bin"です。
-                 * @param {TraitTone=}   options.tone
+                 * @param {TraitTone}      [options.tone]
                  * トーン信号を指定します。省略時はXPskSine(10,10)です。
-                 * @param {number=}      options.preamble_cycle
+                 * @param {number}         [options.preamble_cycle]
                  * プリアンブルの設定値です。省略時は4です。
-                 * @param {boolean=}     options.stop_symbol
+                 * @param {boolean}       [options.stop_symbol]
                  * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
+                 * @param {Object}         [options.packet={}]
+                 * パケットのエンコード/デコードオプションを指定します。
+                 * @param {IPacketConvertor} [options.packet.encoder]
+                 * パケットのエンコードオプションを指定します。
+                 * @param {IPacketConvertor} [options.packet.decoder]
+                 * パケットのデコードオプションを指定します。
                  */
                 constructor(options=undefined){
                     super(...[wasm].concat([options]));

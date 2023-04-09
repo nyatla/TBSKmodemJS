@@ -11,6 +11,7 @@ import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
 import {DoubleInputIterator,TbskException,Disposable} from "../utils/classes.js"
 import {PromiseSequenceRunner,PromiseLock} from "../utils/promiseutils"
+import { IPacketConverter } from "../utils/packetconverter.js";
 
 
 
@@ -115,10 +116,10 @@ class PacketProcessor
         }
     }
     /**
-     * 
+     * @param codec
      * @returns {Promise<number[]|string|undefined>}
      */
-    async read(decoder)
+    async read(encoding)
     {   
         const ST=PacketProcessor.ST;
         let _t=this;
@@ -143,8 +144,8 @@ class PacketProcessor
                     if (ra.length > 0) {
                         //ここでdataイベント
                         //console.log("data:");
-                        if (decoder) {
-                            let rd = decoder.put(ra);
+                        if (encoding) {
+                            let rd = encoding.put(ra);
                             if (rd) {
                                 return rd;
                             }
@@ -243,8 +244,11 @@ export class TbskReceiver extends Disposable
      * @param {*} mod 
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle 
+     * @param {Number|undefined} preamble_th 
+     * @param {IPacketConverter|undefined} codec
+     * パケットデコーダーを設定します。デフォルトはパススルーです。
      */
-    constructor(mod,tone,preamble_cycle=4,preamble_th=1.0)
+    constructor(mod,tone,preamble_cycle=undefined,preamble_th=undefined,codec=undefined)
     {
         super();
         const ST=TbskReceiver.ST;
@@ -254,10 +258,10 @@ export class TbskReceiver extends Disposable
         this._status=ST.CLOSED;
         this._rx_task=undefined;
         this._closing_lock=undefined;
-        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle);
+        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle,codec);
         this._input_buf = new DoubleInputIterator(mod,true);
         this._packet_proc=undefined;
-        this._decoder=undefined;
+        this._encoding=undefined;
 
 
         
@@ -274,11 +278,15 @@ export class TbskReceiver extends Disposable
     /**
      * Audioデバイスの準備ができるまで待ちます。
      * @param {number} carrier
-     * @param {string|undefined} decoder
+     * 搬送波周波数です。
+     * @param {string|undefined} encoding
+     * utf8,bin,undefinedを指定できます。未指定の時はbinです。
+     * "utf8"はバイトストリームをUTF8文字に変換して通知します。
+     * "bin"はバイトストリームをバイト値配列で通知します。
      * @returns {Promise}
      * ステータス異常の場合はrejectします。
      */
-    async open(carrier=16000,decoder=undefined)
+    async open(carrier=16000,encoding=undefined)
     {
         let _t=this;
         const ST=TbskReceiver.ST;
@@ -288,13 +296,13 @@ export class TbskReceiver extends Disposable
         let audio_input=new AudioInput(carrier);
         const dectbl={"utf8":Utf8Decoder,"bin":PassDecoder};
         
-        this._decoder=(decoder && decoder in dectbl)?new dectbl[decoder]:new PassDecoder();
+        this._encoding=(encoding && encoding in dectbl)?new dectbl[encoding]:new PassDecoder();
 
         /** @type {?} */
         _t._status=ST.OPENING;
         await audio_input.open();
         this._audio_input=audio_input;
-        _t._status=ST.IDLE;
+        this._status=ST.IDLE;
         return;
     }
 
@@ -386,7 +394,7 @@ export class TbskReceiver extends Disposable
         const ST=TbskReceiver.ST; 
         let pp=this._packet_proc=new PacketProcessor(this._demod,this._input_buf);
         //Audioの開始
-        _t._decoder?.reset();
+        _t._encoding?.reset();
         _t._status=ST.RECVING;
         _t._rx_lock=new PromiseLock();
         let ps=new PromiseSequenceRunner();
@@ -397,7 +405,7 @@ export class TbskReceiver extends Disposable
             if(await pp?.detect()){
                 ps.execute(()=>{onSignal()});//非同期実行
                 while(true){
-                    let v=await pp?.read(_t._decoder);
+                    let v=await pp?.read(_t._encoding);
                     if(!v){
                         break;
                     }

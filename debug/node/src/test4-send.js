@@ -11,16 +11,39 @@ import { TbskSocket } from "../../../src/misc/TbskSocket";
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
 import {TEST,CheckPoint} from "./header"
+import { IPacketConverter } from "../../../src/utils/packetconverter.js";
 
 const jQuery = require("jquery");
 
 
+export class CountUpConverter extends IPacketConverter
+{
+    constructor(){
+        super("CountUpDecoder");
+    }
+    reset(){}
+    convert(data){
+        if(!data){
+            return [];
+        }
+        let r=[];
+        for(let i=0;i<data.length;i++){
+            r.push(45+i);
+        }
+        return r;
+    }
+}
+
+/**
+ * 
+ * @param {TBSKmodemJS} tbsk 
+ */
 export function test4_send(tbsk)
 {
     async function fn(){
         let ttx=new tbsk.TbskTransmitter(new tbsk.XPskSinTone(10,10));
         await ttx.open(new AudioContext());
- 
+
         //
         //  sendのテスト
         //
@@ -253,7 +276,18 @@ export function test4_send(tbsk)
             await chat.waitCloseAS();
             cc.complete(5);
         }
-        
+        if(true){
+            let cc=new CheckPoint("コーデックテスト(外部で-./0123を受信すればOK)").info();
+            let chat=new tbsk.misc.TbskSocket({packet:{encoder:new CountUpConverter()}});
+            await chat.waitOpenAS();
+            chat.volume=1;
+            cc.step(0);
+            chat.send("ABCDEFG");
+            await chat.waitSendAS();
+            chat.close();
+            await chat.waitCloseAS();
+            cc.complete(0);
+        }
 
 
 

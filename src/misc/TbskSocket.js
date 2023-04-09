@@ -1,9 +1,11 @@
 // @ts-check
 
+import { TbskModulator } from "../tbskclasses/TbskModulator.js";
 import { TbskReceiver } from "../tbskclasses/TbskReceiver.js";
 import { TraitTone, XPskSinTone } from "../tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../tbskclasses/TbskTransmitter.js";
 import { TbskException } from "../utils/classes";
+import { IPacketConverter} from "../utils/packetconverter.js";
 import { PromiseLock, PromiseThread } from "../utils/promiseutils";
 
 
@@ -278,21 +280,29 @@ export class TbskSocket extends EventTarget
      */
     get status(){return this._status;};
     /**
+     * ※修正したらlibtbskmodemにコピーして
      * 通信ソケット生成して、送受信の準備をします。
      * 実行が完了するとopenイベントを呼び出します。
      * @param {any} mod
      * TBSKModemのWASMインタフェイスオブジェクトです。
-     * @param {Object} options
-     * @param {number=}      options.carrier
+     * @param {Object}          [options={}]
+     * オプションを指定します。
+     * @param {number}          [options.carrier]
      * 搬送波周波数です。
-     * @param {string=}      options.decoder
+     * @param {string}         [options.encoding]
      * ペイロードのエンコーディングを指定します。"utf8","bin"が利用できます。省略時は"bin"です。
-     * @param {TraitTone=}   options.tone
+     * @param {TraitTone}      [options.tone]
      * トーン信号を指定します。省略時はXPskSine(10,10)です。
-     * @param {number=}      options.preamble_cycle
+     * @param {number}         [options.preamble_cycle]
      * プリアンブルの設定値です。省略時は4です。
-     * @param {boolean=}     options.stop_symbol
+     * @param {boolean}       [options.stop_symbol]
      * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
+     * @param {Object}         [options.packet={}]
+     * パケットのエンコード/デコードオプションを指定します。
+     * @param {IPacketConverter} [options.packet.encoder]
+     * パケットのエンコードオプションを指定します。
+     * @param {IPacketConverter} [options.packet.decoder]
+     * パケットのデコードオプションを指定します。
      */
     constructor(mod,options)
     {
@@ -305,17 +315,24 @@ export class TbskSocket extends EventTarget
         this._rcvth=undefined;
         try{
             let carrier=(options && "carrier" in options)?options["carrier"]:16000;
-            let decoder=(options && "decoder" in options)?options["decoder"]:undefined;
+            let encoding=(options && "encoding" in options)?options["encoding"]:undefined;
+            /** @type {TraitTone} */
+            //@ts-ignore
             let tone=(options && "tone" in options)?options["tone"]:default_tone;
-            let preamble_cycle=(options && "preamble_cycle" in options)?options["preamble_cycle"]:4;
+            let preamble_cycle=(options && "preamble_cycle" in options)?options["preamble_cycle"]:undefined;
             let stop_symbol=(options && "stop_symbol" in options)?options["stop_symbol"]:true;
-            let tx=new TbskTransmitter(mod,tone,preamble_cycle);
-            let rx=new TbskReceiver(mod,tone,preamble_cycle);
+            //@ts-ignore
+            let codec_tx=(options && "packet" in options && "encoder" in options.packet?options.packet.encoder:undefined);
+            //@ts-ignore
+            let codec_rx=(options && "packet" in options && "decoder" in options.packet?options.packet.decoder:undefined);
+            let tx=new TbskTransmitter(mod,tone,preamble_cycle,codec_tx);
+            let rx=new TbskReceiver(mod,tone,preamble_cycle,undefined,codec_rx);
+
 
             async function open(eventtarget){
                 let err=undefined;
                 try{
-                    await rx.open(carrier,decoder);
+                    await rx.open(carrier,encoding);
                     try{
                         await tx.open(rx.audioContext,carrier);
                     }catch(e){
