@@ -1,8 +1,6 @@
 //@ts-check
 
 import {WasmProxy,IntInputIterator,DoubleOutputIterator} from "../utils/classes"
-import {IPacketConverter} from "../utils/packetconverter"
-import { StopIteration } from "./StopIteration";
 import { TraitTone } from "./TbskTone";
 
 /**
@@ -15,16 +13,14 @@ export class TbskModulator extends WasmProxy
      * @param {*} mod
      * @param {TraitTone} tone
      * @param {number|undefined} preamble_cycle
-     * @param {IPacketConverter|undefined} encoder
      */
-    constructor(mod,tone, preamble_cycle = undefined,encoder=undefined) {  
+    constructor(mod,tone, preamble_cycle = undefined) {  
         super(
             mod,
             mod._wasm_tbskmodem_TbskModulator_A(
             tone._wasm_instance,
             preamble_cycle!==undefined?preamble_cycle:TbskModulator.DEFAULT_PREAMBLE_CYCLE
             ));
-        this._encoder=encoder;
     }
     /**
      * @param {array[number]|string} src
@@ -44,15 +40,7 @@ export class TbskModulator extends WasmProxy
             } else {
                 ssrc=src;
             }
-            let encoder=this._encoder;
-            if(encoder){
-                encoder.reset();
-                encoder.puts(ssrc);
-                encoder.put(undefined);//終端指示
-                buf.puts(encoder.toArray());//全部取れるはず
-            }else{
-                buf.puts(ssrc);
-            }
+            buf.puts(ssrc);
             //int*を渡して、[int,float...]のポインタを返してもらう。
             let wi = mod._wasm_tbskmodem_TbskModulator_Modulate(this._wasm_instance, buf._wasm_instance, stopsymbol);
             if (wi == null) {

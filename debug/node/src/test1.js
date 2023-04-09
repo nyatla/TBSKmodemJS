@@ -80,11 +80,8 @@ export function test1(tbsk)
             let demod=new tbsk.TbskDemodulator(tone);
             console.log("A",demod.demodulate(d));
             console.log("B",demod.demodulateAsStr(ds));
-            let conv=new CountUpConverter();
-            let demod2=new tbsk.TbskDemodulator(tone,1,4,conv);
-            console.log("C",demod2.demodulate(d));
-//            console.log("D",demod2.demodulateAsStr(ds));
 
+            
 
 
 

@@ -1,11 +1,9 @@
 // @ts-check
 
-import { TbskModulator } from "../tbskclasses/TbskModulator.js";
 import { TbskReceiver } from "../tbskclasses/TbskReceiver.js";
 import { TraitTone, XPskSinTone } from "../tbskclasses/TbskTone.js";
 import { TbskTransmitter } from "../tbskclasses/TbskTransmitter.js";
 import { TbskException } from "../utils/classes";
-import { IPacketConverter} from "../utils/packetconverter.js";
 import { PromiseLock, PromiseThread } from "../utils/promiseutils";
 
 
@@ -297,12 +295,6 @@ export class TbskSocket extends EventTarget
      * プリアンブルの設定値です。省略時は4です。
      * @param {boolean}       [options.stop_symbol]
      * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
-     * @param {Object}         [options.packet={}]
-     * パケットのエンコード/デコードオプションを指定します。
-     * @param {IPacketConverter} [options.packet.encoder]
-     * パケットのエンコードオプションを指定します。
-     * @param {IPacketConverter} [options.packet.decoder]
-     * パケットのデコードオプションを指定します。
      */
     constructor(mod,options)
     {
@@ -325,8 +317,8 @@ export class TbskSocket extends EventTarget
             let codec_tx=(options && "packet" in options && "encoder" in options.packet?options.packet.encoder:undefined);
             //@ts-ignore
             let codec_rx=(options && "packet" in options && "decoder" in options.packet?options.packet.decoder:undefined);
-            let tx=new TbskTransmitter(mod,tone,preamble_cycle,codec_tx);
-            let rx=new TbskReceiver(mod,tone,preamble_cycle,undefined,codec_rx);
+            let tx=new TbskTransmitter(mod,tone,preamble_cycle);
+            let rx=new TbskReceiver(mod,tone,preamble_cycle,undefined);
 
 
             async function open(eventtarget){

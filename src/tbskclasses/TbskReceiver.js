@@ -11,7 +11,6 @@ import {StopIteration} from "./StopIteration"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
 import {DoubleInputIterator,TbskException,Disposable} from "../utils/classes.js"
 import {PromiseSequenceRunner,PromiseLock} from "../utils/promiseutils"
-import { IPacketConverter } from "../utils/packetconverter.js";
 
 
 
@@ -245,10 +244,9 @@ export class TbskReceiver extends Disposable
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle 
      * @param {Number|undefined} preamble_th 
-     * @param {IPacketConverter|undefined} codec
      * パケットデコーダーを設定します。デフォルトはパススルーです。
      */
-    constructor(mod,tone,preamble_cycle=undefined,preamble_th=undefined,codec=undefined)
+    constructor(mod,tone,preamble_cycle=undefined,preamble_th=undefined)
     {
         super();
         const ST=TbskReceiver.ST;
@@ -258,7 +256,7 @@ export class TbskReceiver extends Disposable
         this._status=ST.CLOSED;
         this._rx_task=undefined;
         this._closing_lock=undefined;
-        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle,codec);
+        this._demod = new TbskDemodulator(mod,tone, preamble_th, preamble_cycle);
         this._input_buf = new DoubleInputIterator(mod,true);
         this._packet_proc=undefined;
         this._encoding=undefined;

@@ -9,7 +9,6 @@ import { TraitTone} from "./TbskTone.js";
 
 import {Disposable, TbskException} from "../utils/classes"
 import {PromiseThread,PromiseLock} from "../utils/promiseutils"
-import { IPacketConverter } from "../utils/packetconverter.js";
 
 
 
@@ -37,9 +36,8 @@ export class TbskTransmitter extends Disposable
      * @param {*} mod 
      * @param {TraitTone} tone
      * @param {Number|undefined} preamble_cycle
-     * @param {IPacketConverter|undefined} codec
      */
-    constructor(mod,tone,preamble_cycle=undefined,codec=undefined)
+    constructor(mod,tone,preamble_cycle=undefined)
     {
         super();
         this._sample_rate=undefined;
@@ -48,9 +46,7 @@ export class TbskTransmitter extends Disposable
         this._current_tx=undefined;
         this._closing_lock=undefined;
         this._player=undefined;
-        this._codec=undefined;
-     
-        this._mod=new TbskModulator(mod,tone,preamble_cycle,codec);
+        this._mod=new TbskModulator(mod,tone,preamble_cycle);
     }
     dispose()
     {

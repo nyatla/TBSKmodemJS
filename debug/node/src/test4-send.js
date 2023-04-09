@@ -276,19 +276,8 @@ export function test4_send(tbsk)
             await chat.waitCloseAS();
             cc.complete(5);
         }
-        if(true){
-            let cc=new CheckPoint("コーデックテスト(外部で-./0123を受信すればOK)").info();
-            let chat=new tbsk.misc.TbskSocket({packet:{encoder:new CountUpConverter()}});
-            await chat.waitOpenAS();
-            chat.volume=1;
-            cc.step(0);
-            chat.send("ABCDEFG");
-            await chat.waitSendAS();
-            chat.close();
-            await chat.waitCloseAS();
-            cc.complete(0);
-        }
 
+        
 
 
 
