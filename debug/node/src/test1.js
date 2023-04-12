@@ -2,30 +2,10 @@
 
 import { TBSKmodemJS } from "../../../src/libtbskmodem";
 import { StopIteration } from "../../../src/tbskclasses/StopIteration";
-import { IPacketConverter } from "../../../src/utils/packetconverter";
+
 
 const jQuery = require("jquery");
 
-
-export class CountUpConverter extends IPacketConverter
-{
-    constructor(){
-        super("CountUpDecoder");
-        this._c=0;
-    }
-    reset(){}
-    put(data){
-        this._c++;
-        return 1;
-    }
-    next(){
-        if(this._c>0){
-            return this._c--;
-        }
-        throw new StopIteration();
-
-    }
-}
 
 
 /**

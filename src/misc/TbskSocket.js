@@ -313,10 +313,6 @@ export class TbskSocket extends EventTarget
             let tone=(options && "tone" in options)?options["tone"]:default_tone;
             let preamble_cycle=(options && "preamble_cycle" in options)?options["preamble_cycle"]:undefined;
             let stop_symbol=(options && "stop_symbol" in options)?options["stop_symbol"]:true;
-            //@ts-ignore
-            let codec_tx=(options && "packet" in options && "encoder" in options.packet?options.packet.encoder:undefined);
-            //@ts-ignore
-            let codec_rx=(options && "packet" in options && "decoder" in options.packet?options.packet.decoder:undefined);
             let tx=new TbskTransmitter(mod,tone,preamble_cycle);
             let rx=new TbskReceiver(mod,tone,preamble_cycle,undefined);
 
@@ -376,7 +372,7 @@ export class TbskSocket extends EventTarget
         }
     }
     /**
-     * ソケットを閉じます。
+     * ソケットを閉じます。送信中、受信中の場合は中断され、未送信のデータは破棄されます。
      * @returns 
      */
     close()
@@ -438,8 +434,7 @@ export class TbskSocket extends EventTarget
     /**
      * データを送信します。
      * データは送信キューに投入され、実行中の受信操作を中断してから送信されます。
-     * 既に実行中の送信操作があった場合はすべてキャンセルされます。
-     * @param {*} v 
+     * @param {string|number[]} v 
      */
     send(v)
     {
@@ -470,7 +465,7 @@ export class TbskSocket extends EventTarget
             });
     }
     /**
-     * 信号の送信を中断します。
+     * 送信を中断し、送信キューにある未送信データを破棄します。
      */
     cancelSend(){
         //close実行中は例外。
@@ -564,8 +559,30 @@ export class TbskSocket extends EventTarget
         this.addEventListener("open",handler);
         await lock.wait();
     }
-
-    get state(){return this._status;}
+    /**
+     *  Websocketフレンドリな状態値を返します。
+     *  0	CONNECTING	ソケットの作成が完了した。コネクションは開かれていない。
+        1	OPEN	コネクションが開かれ、通信の準備ができている。
+        2	CLOSING	コネクションが閉じる過程にある。
+        3	CLOSED        
+     */
+    get readyState()
+    {
+        let ST=TbskSocket.ST;
+        switch(this._status){
+            case ST.CLOSED:
+                if(this._colsing_now){
+                    return 3;
+                }
+                return 0;
+            case ST.OPENNING:
+                return 0;
+            case ST.WORKING:
+                return 1;
+            default:
+                throw new TbskException();
+        }
+    }
     /**
      * ボーレートを返します。
      */

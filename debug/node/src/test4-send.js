@@ -11,28 +11,13 @@ import { TbskSocket } from "../../../src/misc/TbskSocket";
 import { TbskException } from "../../../src/utils/classes.js";
 import { sleep } from "../../../src/utils/functions.js";
 import {TEST,CheckPoint} from "./header"
-import { IPacketConverter } from "../../../src/utils/packetconverter.js";
+
 
 const jQuery = require("jquery");
 
 
-export class CountUpConverter extends IPacketConverter
-{
-    constructor(){
-        super("CountUpDecoder");
-    }
-    reset(){}
-    convert(data){
-        if(!data){
-            return [];
-        }
-        let r=[];
-        for(let i=0;i<data.length;i++){
-            r.push(45+i);
-        }
-        return r;
-    }
-}
+
+
 
 /**
  * 

@@ -12,6 +12,7 @@ import { TbskDemodulator } from "./tbskclasses/TbskDemodulator";
 import { TbskListener } from "./tbskclasses/TbskListener";
 import { CustomTone,SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
 import { TbskSocket} from "./misc/TbskSocket";
+import { CRC16 } from "./utils/crc16";
 
 
 // @ts-check
@@ -22,7 +23,7 @@ import { TbskSocket} from "./misc/TbskSocket";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.3.0";
+const VERSION="TBSKmodemJS/0.4.0";
 
 /**
  * 
@@ -86,6 +87,10 @@ export class TBSKmodemJS
             /** @class {@link AudioPlayer} */
             AudioPlayer:AudioPlayer,
         };
+        this.utils={
+            /** @class {@link CRC16} */
+            CRC16:CRC16
+        }
         this.misc={
             /** @class {@link TbskSocket} */
             TbskSocket:class extends TbskSocket{
@@ -105,12 +110,6 @@ export class TBSKmodemJS
                  * プリアンブルの設定値です。省略時は4です。
                  * @param {boolean}       [options.stop_symbol]
                  * 送信時にストップシンボルを付加するかのフラグです。省略時はtrueです。
-                 * @param {Object}         [options.packet={}]
-                 * パケットのエンコード/デコードオプションを指定します。
-                 * @param {IPacketConvertor} [options.packet.encoder]
-                 * パケットのエンコードオプションを指定します。
-                 * @param {IPacketConvertor} [options.packet.decoder]
-                 * パケットのデコードオプションを指定します。
                  */
                 constructor(options=undefined){
                     super(...[wasm].concat([options]));

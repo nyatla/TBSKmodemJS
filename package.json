@@ -4,7 +4,7 @@
   "description": "TBSKmodem JavaScript implementation.",
   "main": "src/libtbskmodem.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha test/test.js",
     "prebuild": "rimraf dist",
     "build": "webpack --mode=production --node-env=production",
     "build:dev": "webpack --mode=development",
@@ -36,6 +36,7 @@
     "@webpack-cli/generators": "^3.0.1",
     "css-loader": "^6.7.3",
     "html-webpack-plugin": "^5.5.0",
+    "mocha": "^10.2.0",
     "rimraf": "^4.1.1",
     "style-loader": "^3.3.1",
     "webpack": "^5.76.0",
