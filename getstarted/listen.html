@@ -6,38 +6,80 @@
   <title>TBSKmodemJS - listen.</title>
 </head>
 <body>
-    <h1>listen test.</h1>
-    See console log.
+    <h1>TBSKListener test.</h1>
+    This is low level API. TbskSocket is recommended.<br/>
     <script async src="../dist/tbskmodem.js"></script>
     <script>
-        var actx = new (window.AudioContext || window.webkitAudioContext)();
-        let listener=null;
-        window.addEventListener('load', function () {
-          TBSKmodemJS.load().then((tbsk)=>{
-                //initialize
-                var tone = new tbsk.XPskSinTone(10,10);
-                var preamble = new tbsk.CoffPreamble(tone);
-                listener = new tbsk.TbskListener(tone, preamble,
-                {
-                  onStart:()=>{console.log("START");return "utf8";},
-                  onData:(d)=>{console.log("DATA:"+d);},
-                  onEnd:()=>{console.log("END");},
-                },
-                "utf8"
-                );
-                tone.dispose();
-                preamble.dispose();
-          })
-        });
-        function onButton(){
-          let audioin=new TBSKmodemJS.audio.AudioCapture(16000);
-                audioin.open().then(()=>{
-                  audioin.start((d)=>{
-                  listener.push(d);}
-                )
-                });          
+        function print(m){let em=document.getElementById("log");em.value=em.value+m;}
+        class Lock{constructor(){let _t=this;_t._p=new Promise((r)=>{_t._r=r})};async wait(){await this._p;};release(){this._r();}};
+
+
+
+        let startbutton=new Lock();
+        let unload=new Lock();
+        async function main()
+        {
+          //wait for start button click.
+          print("Click START button\n");            
+          await startbutton.wait();
+
+          print("Loading:TBSKmodemJS")
+          let env=TBSKmodemJS.checkEnvironment();
+          if(env.success!=true){
+            print("Insufficient environment required for TBSKmodemJ\n");
+            print(JSON.stringify(env)+"\n");
+            throw Error();
+          }
+
+          //tbsk setup
+          let tbsk=await TBSKmodemJS.load();
+          print("->Listener")
+          //listener setup(Create listener with default settings.)
+          var tone = new tbsk.XPskSinTone(10,10);
+          let listener = new tbsk.TbskListener(tone,undefined,undefined,
+            {
+              onStart:()=>{print("Detected:\nData:");return "utf8";},
+              onData:(d)=>{print(d);},
+              onEnd:()=>{print("\nLost\n");},
+            },
+            "utf8"
+          );
+          print("->AudioInput")
+          //audio setup
+          let audioin=await new tbsk.audio.AudioInput(16000);
+          await audioin.open();
+          audioin.start((d)=>{
+              listener.push(d);
+          });
+
+          print("->Ready!\n")
+          await unload.wait();
+
+          audioin.stop();
+          listener.dispose();
+          tone.dispose();
         }
+
+
+
+        window.addEventListener('load', ()=>
+        {
+          window.addEventListener('unload',()=>{
+              unload.release();
+          });
+          document.getElementById("start").addEventListener("click",()=>{
+            startbutton.release();
+          });
+          try{
+            main();
+          }catch(e){
+            print("\nCatched Errors!\n"+e);
+          }
+        });
   </script>
-  <button name="start" onclick="onButton()">Start</button>
+
+<button id="start">START</button>
+<textarea id="log" rows="25" cols="80"></textarea>
+
 </body>
 </html>

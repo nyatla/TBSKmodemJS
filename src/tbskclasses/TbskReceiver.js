@@ -260,6 +260,7 @@ export class TbskReceiver extends Disposable
         this._input_buf = new DoubleInputIterator(mod,true);
         this._packet_proc=undefined;
         this._encoding=undefined;
+        this._disposed=false;
 
 
         
@@ -288,7 +289,7 @@ export class TbskReceiver extends Disposable
     {
         let _t=this;
         const ST=TbskReceiver.ST;
-        if(_t._status!=ST.CLOSED){
+        if(_t._status!=ST.CLOSED || _t._disposed){
             throw new TbskException();
         }
         let audio_input=new AudioInput(carrier);
@@ -345,14 +346,21 @@ export class TbskReceiver extends Disposable
     dispose()
     {
         const ST=TbskReceiver.ST;
-        if(this._status==ST.CLOSED){
+        if(this._disposed){
             return;
         }
-        //リソースの破棄は非同期で実行する。
-        this.close().then(()=>{
+        this._disposed=true;
+        if(this._status==ST.CLOSED){
             this._demod.dispose();
             this._input_buf.dispose();
-        });
+            return;
+        }else{
+            //リソースの破棄は非同期で実行する。
+            this.close().then(()=>{
+                this._demod.dispose();
+                this._input_buf.dispose();
+            });    
+        }
     }
     
     /**

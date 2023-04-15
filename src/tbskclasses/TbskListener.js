@@ -1,6 +1,7 @@
 import {TbskDemodulator} from "./TbskDemodulator.js"
 import {Utf8Decoder,PassDecoder} from "../utils/decoder.js"
 import {DoubleInputIterator,Disposable} from "../utils/classes.js"
+import {StopIteration} from "./StopIteration"
 import {RecoverableStopIteration} from "./RecoverableStopIteration"
 
 export class TbskListener extends Disposable{

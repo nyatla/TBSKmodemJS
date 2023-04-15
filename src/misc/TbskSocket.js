@@ -396,7 +396,11 @@ export class TbskSocket extends EventTarget
                     _t._status=ST.CLOSED;
 //                    console.log("CLOSE-EVENT");
                     let event = new CustomEvent("close",{detail: {}});
-                    _t.dispatchEvent(event);                    
+                    _t.dispatchEvent(event);
+                }).then(()=>{
+                    //再OPENしないから、多分これでOK
+                    _t._tx.dispose();
+                    _t._rx.dispose();
                 });
                 await _t._rcvth?.join();
                 break;
@@ -413,7 +417,11 @@ export class TbskSocket extends EventTarget
                             _t._status=ST.CLOSED;
                             let event = new CustomEvent("close",{detail: {}});
                             _t.dispatchEvent(event);
-                        });    
+                        }).then(()=>{
+                            //再OPENしないから、多分これでOK
+                            _t._tx.dispose();
+                            _t._rx.dispose();
+                        });
                     }finally{
                         _t.removeEventListener("open",open_handler);
                     }

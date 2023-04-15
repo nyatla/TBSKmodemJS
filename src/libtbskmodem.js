@@ -23,7 +23,7 @@ import { CRC16 } from "./utils/crc16";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.4.0";
+const VERSION="TBSKmodemJS/0.4.1";
 
 /**
  * 
@@ -79,7 +79,7 @@ export class TBSKmodemJS
     {
         this.wasm=wasm;
         /** @type {string}*/
-        this.version=VERSION+";"+wasm.VERSION;
+        this.version=VERSION+";TBSKmodemCPP/"+wasm._wasm_tbskmodem_VERSION(0)+"."+wasm._wasm_tbskmodem_VERSION(1)+"."+wasm._wasm_tbskmodem_VERSION(2);
 
         this.audio={
             /** @class {@link AudioInput} */

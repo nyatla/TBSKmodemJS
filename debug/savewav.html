@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang=en-us>
+<head>
+  <meta charset=utf-8>
+  <meta content="text/html; charset=utf-8" http-equiv=Content-Type>
+  <title>TBSKmodemJS - listen.</title>
+</head>
+<body>
+    <h1>listen test.</h1>
+    See console log.
+    <script async src="../dist/tbskmodem.js"></script>
+    <script>
+        let buf;
+        var actx = new (window.AudioContext || window.webkitAudioContext)();
+        let listener=null;
+        let audioin;
+        window.addEventListener('load', function () {
+          TBSKmodemJS.load().then((tbsk)=>{
+                //initialize
+                var tone = new tbsk.XPskSinTone(10,10);
+                var preamble = new tbsk.CoffPreamble(tone);
+                listener = new tbsk.TbskListener(tone, preamble,
+                {
+                  onStart:()=>{console.log("START");return "utf8";},
+                  onData:(d)=>{console.log("DATA:"+d);},
+                  onEnd:()=>{console.log("END");},
+                },
+                "utf8"
+                );
+                tone.dispose();
+                preamble.dispose();
+          })
+        });
+        function onButton(){
+          buf=[];
+          audioin=new TBSKmodemJS.audio.AudioCapture(16000);
+                audioin.open().then(()=>{
+                  audioin.start((d)=>{
+                    for(let i in d){
+                      buf.push(d[i]);
+                    }
+                }
+                )
+                });          
+        }
+        function onButton2()
+        {
+          audioin.stop();
+          document.getElementById("output").value="["+buf+"]";
+        }
+
+  </script>
+  <button name="start" onclick="onButton()">Start</button>
+  <button name="stop" onclick="onButton2()">Stop</button>
+  <div>
+    <textarea id="output"></textarea>
+  </div>
+
+</body>
+</html>

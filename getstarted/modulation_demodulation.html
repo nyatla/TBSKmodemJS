@@ -7,28 +7,29 @@
 </head>
 <body>
     <h1>Modulation/Demodulation test.</h1>
-    See console log.
+    Check console log.<br/>
+    This is low level API. TbskSocket is recommended.<br/>
     <script async src="../dist/tbskmodem.js"></script>
     <script>
+        async function main(){
+          let tbsk=await TBSKmodemJS.load();
+          console.log(tbsk.version);
+          var tone = new tbsk.XPskSinTone(10,10);
+          let mod = new tbsk.TbskModulator(tone);
+          let src=[1,2,3];
+          console.log("Source data",src);
+          let farray = mod.modulate([1,2,3]);
+          console.log("modulated waveform size",farray.length);
+          let demod=new tbsk.TbskDemodulator(tone);
+          let demod_src=demod.demodulate(farray);
+          console.log("demodulate from waveform.");
+          console.log(demod_src);
+          tone.dispose();
+          mod.dispose();
+          demod.dispose();
+        }
         window.addEventListener('load', function () {
-          TBSKmodemJS.load().then((tbsk)=>{
-                console.log(tbsk.version);
-                var tone = new tbsk.XPskSinTone(10,10);
-                var preamble = new tbsk.CoffPreamble(tone);
-                let mod = new tbsk.TbskModulator(tone, preamble);
-                let farray = mod.modulate([1,2,3]);
-                mod.dispose();
-                console.log(farray.length);
-
-                let demod=new tbsk.TbskDemodulator(tone,preamble);
-                let demod_src=demod.demodulate(farray);
-                console.log(demod_src);
-
-
-                tone.dispose();
-                preamble.dispose();
-                demod.dispose();
-          });
+          main();
         });
   </script>
 </body>

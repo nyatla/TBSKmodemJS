@@ -23,6 +23,6 @@
     "workbox-webpack-plugin": "^6.5.4"
   },
   "dependencies": {
-    "tbskmodem-js": "^0.1.1"
+    "tbskmodem-js": "^0.4.1"
   }
 }

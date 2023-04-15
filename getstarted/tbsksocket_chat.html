@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang=en-us>
+<head>
+  <meta charset=utf-8>
+  <meta content="text/html; charset=utf-8" http-equiv=Content-Type>
+  <title>TBSKmodemJS - listen.</title>
+</head>
+<body>
+    <h1>TbskSocket Chat application.</h1>
+    Simple Chat Application<br/>
+    This application can receive TBSK modulated message, and send text message "Hello".<br/>
+    Open peer application on other window and communicate with it!
+    <script async src="../dist/tbskmodem.js"></script>
+    <script>
+        function print(m){let em=document.getElementById("log");em.value=em.value+m;}
+        class Lock{constructor(){let _t=this;_t._p=new Promise((r)=>{_t._r=r})};async wait(){await this._p;};release(){this._r();}};
+
+
+
+        let startbutton=new Lock();
+        let sendbutton=new Lock();
+        let unload=new Lock();
+        async function main()
+        {
+          let shutdown=false;
+          //wait for start button click.
+          print("Click START button\n");            
+          await startbutton.wait();
+
+          print("Loading:")
+          let env=TBSKmodemJS.checkEnvironment();
+          if(env.success!=true){
+            print("Insufficient environment required for TBSKmodemJ\n");
+            print(JSON.stringify(env)+"\n");
+            throw Error();
+          }
+
+          //tbsk setup
+          let tbsk=await TBSKmodemJS.load();
+          print(tbsk.version);
+          print("\n");
+
+          
+          //socket setup(Create listener with default settings.)
+          let socket = new tbsk.misc.TbskSocket({carrier:16000,encoding:"utf8"});
+          socket.addEventListener("open",(event)=>{print("Socket open!\n");});
+          socket.addEventListener("detected",(event)=>{print("RX("+event.id+") ");});
+          socket.addEventListener("message",(event)=>{print(event.data);});
+          socket.addEventListener("lost",(event)=>{print("\n");});
+          socket.addEventListener("sendstart",(event)=>{print("TX:("+event.id+")");});
+          socket.addEventListener("sendcompleted",(event)=>{print("done\n");});
+          socket.addEventListener("close",(event)=>{print("closed!\n");});
+
+          //Thread
+          (()=>{
+            async function task()
+            {
+              while(!shutdown){
+                await sendbutton.wait();
+                if(socket.readyState==1){
+                  socket.send("Hello!");
+                }
+              }
+            }
+            task();
+          })();
+
+          await unload.wait();
+          print("Shutdown sequence.");
+          shutdown=true;
+          socket.close();
+          await socket.waitCloseAS();
+          print("Shutdown.");
+        }
+
+
+
+        window.addEventListener('load', ()=>
+        {
+          window.addEventListener('unload',()=>{
+              unload.release();
+          });
+          document.getElementById("start").addEventListener("click",()=>{
+            startbutton.release();
+          });
+          document.getElementById("send").addEventListener("click",()=>{
+            sendbutton.release();
+            sendbutton=new Lock();
+          });
+          document.getElementById("close").addEventListener("click",()=>{
+            unload.release();
+          });
+
+          try{
+            main();
+          }catch(e){
+            print("\nCatched Errors!\n"+e);
+          }
+        });
+  </script>
+<br/>
+<button id="start">START</button>
+<button id="send">SEND</button>
+<button id="close">CLOSE</button>
+<br/>
+<textarea id="log" rows="25" cols="80"></textarea>
+
+</body>
+</html>

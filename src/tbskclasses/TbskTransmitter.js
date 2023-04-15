@@ -47,10 +47,16 @@ export class TbskTransmitter extends Disposable
         this._closing_lock=undefined;
         this._player=undefined;
         this._mod=new TbskModulator(mod,tone,preamble_cycle);
+        this._disposed=false;
     }
     dispose()
     {
+        if(this._disposed){
+            return;
+        }
+        this._disposed=true;
         if(this._status==ST.CLOSED){
+            this._mod.dispose();
             return;
         }
         if(this._player){

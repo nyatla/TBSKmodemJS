@@ -6,24 +6,21 @@
   <title>TBSKmodemJS - play sound.</title>
 </head>
 <body>
-    <h1>playsound test.</h1>
-    See console log.
+    <h1>WebAudio test.</h1>
+    Check console log.<br/>
     <script async src="../dist/tbskmodem.js"></script>
     <script>
-        var actx = new (window.AudioContext || window.webkitAudioContext)();
         let audio_buf=null;
-        window.addEventListener('load', function () {
-          TBSKmodemJS.load().then((tbsk)=>{
-                console.log(tbsk.version);
-                var tone = new tbsk.XPskSinTone(10,10);
-                var preamble = new tbsk.CoffPreamble(tone);
-                let mod = new tbsk.TbskModulator(tone, preamble);
-                audio_buf = mod.modulate2AudioBuffer(actx,[1,2,3],16000,16);
-                mod.dispose();
-                tone.dispose();
-                preamble.dispose();
-          });
-        });
+        let actx=null;
+        async function main(actx){
+          let tbsk=await TBSKmodemJS.load();
+          console.log(tbsk.version);
+          var tone = new tbsk.XPskSinTone(10,10);
+          let mod = new tbsk.TbskModulator(tone);
+          audio_buf = mod.modulate2AudioBuffer(actx,[1,2,3],16000,16);
+          mod.dispose();
+          tone.dispose();
+        }
         function onButton(){
           console.log("play");
           let node=actx.createBufferSource();
@@ -31,6 +28,10 @@
           node.connect(actx.destination);
           node.start();
         }
+        window.addEventListener('load', function () {
+          actx = new (window.AudioContext || window.webkitAudioContext)();
+          main(actx).then(()=>{console.log("ready");});
+        });
   </script>
   <button onclick="onButton()">Play</button>
 </body>
