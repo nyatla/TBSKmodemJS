@@ -422,6 +422,16 @@ export class TbskReceiver extends Disposable
                         }
                     });//非同期実行
                 }
+                let s=_t._encoding.put();
+                if(s.length>0){
+                    ps.execute(()=>{
+                        if(_t._status==ST.RECVING){
+//                            console.log("SUFFIX",s);//キューに残ってたのを払い出し
+                            //非同期にRECV以外に遷移してたら送信しない。
+                            onData(s);
+                        }
+                    });//非同期実行
+                }
                 ps.execute(()=>{onSignalLost()});//非同期実行
             }
         }finally{

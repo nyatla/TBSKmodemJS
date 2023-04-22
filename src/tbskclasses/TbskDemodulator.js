@@ -64,7 +64,9 @@ export class TbskDemodulator extends WasmProxy
     demodulateAsStr(src)
     {
         let encoding = new Utf8Decoder();
-        return encoding.put(this.demodulate(src));
+        let t=encoding.put(this.demodulate(src));
+        let s=encoding.put();
+        return t+((s!=undefined)?s:"");
     }
     /**
      * 未検出でストリームが中断したらnull

@@ -23,7 +23,7 @@ import { CRC16 } from "./utils/crc16";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.4.1";
+const VERSION="TBSKmodemJS/0.4.2";
 
 /**
  * 

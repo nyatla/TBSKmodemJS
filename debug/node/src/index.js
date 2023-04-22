@@ -13,6 +13,7 @@ const jQuery = require("jquery");
 import { test1 } from "./test1";
 import { test2 } from "./test2";
 import { test3 } from "./test3";
+import { test6_utf8 } from "./utf8.js";
 import { test4_close } from "./test4-close";
 import { test4_send } from "./test4-send";
 import { test4_cancelsend } from "./test4-cancelsend";
@@ -37,6 +38,7 @@ TBSKmodemJS.load().then((tbsk)=>{
     $("#test4_cancelRecv").on("click",()=>{test4_cancelrecv(tbsk)});
     $("#test4_recv").on("click",()=>{test4_recv(tbsk)});
     $("#test5_ax25").on("click",()=>{test5_ax25(tbsk)});
+    $("#test_utf8").on("click",()=>{test6_utf8()});
 
     
     

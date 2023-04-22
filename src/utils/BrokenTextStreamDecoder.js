@@ -1,17 +1,15 @@
 // @ts-check
 
 /**
- * Transrated by chatGPT
+ * Checked by ChatGPT
  */
-export class BrokenTextStreamDecoder {
-    static MAX_CHARACTOR_BYTES = 8;
-
-    constructor(encoding="utf-8") {
-        this._decoder = new TextDecoder(encoding);
-        this._a = new Uint8Array(BrokenTextStreamDecoder.MAX_CHARACTOR_BYTES);
+export class BrokenTextStreamDecoder{
+    static MAX_CHARACTER_BYTES = 8;
+    constructor(encoding = "utf-8") {
+        this._decoder = new TextDecoder(encoding,{ fatal: true });
+        this._a = new Uint8Array(BrokenTextStreamDecoder.MAX_CHARACTER_BYTES);
         this._len = 0;
     }
-
     _decode(length) {
         try {
             const bb = this._a.slice(0, length);
@@ -21,77 +19,84 @@ export class BrokenTextStreamDecoder {
             return null;
         }
     }
-
-    shift(size) {
-        if (size <= 0) {
-            return;
+    _push(v) {
+        if (this._len >= this._a.length) {
+            throw RangeError();
         }
-        if (this._len === 0) {
-            return;
-        }
+        this._a[this._len] = v;
+        this._len++;
+    }
+    /**
+     * キューを左シフトする。
+     * @param {*} size 
+     */
+    _shift(size) {
         const a = this._a;
         for (let i = size; i < a.length; i++) {
             a[i - size] = a[i];
         }
         this._len -= size;
+        return;
     }
-
-    peekFront() {
-        if (this._len > 0) {
-            return this._a[0];
+    /**
+    * 現在のキャッシュの文字として確定可能なバイト数を返す。
+    * @param {Number} d 
+    * @returns
+    * -1 先頭1文字をアンダーフローする必要がある
+    * 0  確定しない
+    * 1> N文字が確定した。 
+    */
+    test() {
+        //キューの内容を順番にチェックしてみる
+        for (let i = 1; i <= this._len; i++) {
+            const r = this._decode(i);
+            if (r !== null) {
+                return i;
+            }
         }
-        return null;
-    }
-    test(d){
-        if(arguments.length==0){
-            if (this._len === 0) {
-                return 0;
-            }
-            for (let i = 1; i <= this._len; i++) {
-                const r = this._decode(i);
-                if (r !== null) {
-                    return i;
-                }
-            }
-            return -1;    
-        }else{
-            const a = this._a;
-            if (this._len >= a.length) {
-                this.shift(1);
-            }
-            a[this._len] = d;
-            this._len++;
-            return this.test();
+        if (this._len >= this._a.length) {
+            return -1;
         }
+        return 0;
     }
-
-    update(d) {
-        const len = this.test(d);
-        switch (len) {
-            case -1:
-                if(arguments.length==0){
-                    this.shift(1);
-                    return "?";    
-                }else{
-                    if (this._len === this._a.length) {
-                        return "?";
+    /**
+    * バイト値を加えて文字が確定したら返す。
+    * 復号できない場合はそのバイト値をそのまま返す
+    * @param {int} d
+    * @returns {string|number|null}
+    */
+    update(d = undefined) {
+        //確定可能なサイズを計算
+        for (let i = 0; i < 2; i++) {
+            const len = this.test();
+            switch (len) {
+                case -1:
+                    let r1 = this._a[0];
+                    this._shift(1);
+                    if(i==0 && d!==undefined){
+                        this._push(d);
+                    }
+                    return r1;//number
+                case 0:
+                    if(i==0 && d !== undefined){
+                        this._push(d);
+                        continue;
+                    }
+                    if (this._len>0 && d===undefined) {
+                        let r1 = this._a[0];
+                        this._shift(1);
+                        return r1;//number
                     } else {
                         return null;
-                    }    
-                }
-            case 0:
-                return null;
-            default:
-                const r = this._decode(len);
-                this.shift(len);
-                return r;
+                    }
+                default:
+                    let r2 = this._decode(len);
+                    this._shift(len);
+                    if(i==0 && d!==undefined){
+                        this._push(d);
+                    }
+                    return r2;//string
+            }
         }
-    }
-    holdLen() {
-        return this._len;
-    }
-
-    isBufferFull() {
-        return this._len === this._a.length;
     }
 }
