@@ -57,7 +57,7 @@ export function test1(tbsk)
             var tone = new tbsk.XPskSinTone(10,10);
             var mod=new tbsk.TbskModulator(tone);
             //        let d=mod.modulate("Hello");
-            let d=mod.modulate([56,58,57,2,0x88,88,5,8,0xe3, 0x81, 0x82,5,66,24,58,56]);
+            let d=mod.modulate([56,58,57,2,0x88,88,5,8,0xe3, 0x81, 0x82,80,80]);
             let ds=mod.modulate("HelloWorld!");
             let demod=new tbsk.TbskDemodulator(tone);
             console.log("A(bin)",demod.demodulate(d));

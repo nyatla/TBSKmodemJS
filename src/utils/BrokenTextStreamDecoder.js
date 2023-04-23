@@ -64,43 +64,56 @@ export class BrokenTextStreamDecoder{
         return 0;
     }
     /**
-    * バイト値を加えて文字が確定したら返す。
-    * 復号できない場合はそのバイト値をそのまま返す
-    * @param {int} d
-    * @returns {string|number|null}
+    * バイト値をUTF8文字、又は整数の配列にして返す。
+    * マルチバイト文字で複合が完了しない場合はnullを返す。
+    * 変換キューが一ぱいになった場合は先頭のバイト値を整数で返す。
+    * @param {number|undefined} d
+    * @returns {Array.<string|number> | null}
     */
     update(d = undefined) {
+        //console.log("in",d)
+        let has_input=(d!==undefined);
+        let r=[];
         //確定可能なサイズを計算
-        for (let i = 0; i < 2; i++) {
+        while (true) {
             const len = this.test();
             switch (len) {
-                case -1:
-                    let r1 = this._a[0];
+            case -1:
+                r.push(this._a[0]);//1バイト払い出し
+                //console.log("A",r,this._len);
+                this._shift(1);
+                if(has_input){
+                    this._push(d);
+                    has_input=false;
+                    continue;
+                }
+                break;
+            case 0:
+                if(has_input){
+                    this._push(d);
+                    has_input=false;
+                    continue;
+                }
+                if (this._len>0 && d==undefined) {
+                    r.push(this._a[0]);
+                    //console.log("B",r,this._len);
                     this._shift(1);
-                    if(i==0 && d!==undefined){
-                        this._push(d);
-                    }
-                    return r1;//number
-                case 0:
-                    if(i==0 && d !== undefined){
-                        this._push(d);
-                        continue;
-                    }
-                    if (this._len>0 && d===undefined) {
-                        let r1 = this._a[0];
-                        this._shift(1);
-                        return r1;//number
-                    } else {
-                        return null;
-                    }
-                default:
-                    let r2 = this._decode(len);
-                    this._shift(len);
-                    if(i==0 && d!==undefined){
-                        this._push(d);
-                    }
-                    return r2;//string
+                } else {
+                    break;
+                }
+                continue;
+            default:
+                r.push(this._decode(len));
+                //console.log("C",r,this._len);
+                this._shift(len);
+                if(has_input){
+                    this._push(d);
+                    has_input=false;
+                }
+                continue;
             }
+            //console.log("out",r);
+            return r.length==0?null:r;
         }
     }
 }

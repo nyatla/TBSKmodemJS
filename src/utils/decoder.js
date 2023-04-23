@@ -32,23 +32,28 @@ export class Utf8Decoder {
      * @param {number[]|undefined} data Uint8の数列
      * undefindで未確定部分も吐き出します。
      * @returns
-     * 文字列、またはから文字列
+     * 文字列、復元できなければ"?"
+     * 文字列がない場合は""
      */
     put(data=undefined) {
         let r="";
         if(data!==undefined){
             for (let i = 0; i < data.length; i++) {
                 let c=this._decoder.update(data[i]);
-                if(c!=null){
-                    r=r+((typeof c)=="number"?"?":c);
+                if(c==null){
+                    continue;
+                }
+                for (let j of c){
+                    r=r+((typeof j)=="number"?"?":j);
                 }
             }
         }else{
             for(let w=this._decoder.update();w!=null;w=this._decoder.update()){
-                if(w==null)continue;
-                r=r+((typeof w)=="number"?"?":w);
+                for (let c of w){
+                    r=r+((typeof c)=="number"?"?":c);
+                }
             }            
         }
-        return (r.length>0)?r:"";
+        return r;
     }
 }
