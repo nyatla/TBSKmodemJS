@@ -13,6 +13,8 @@ import { TbskListener } from "./tbskclasses/TbskListener";
 import { CustomTone,SinTone,TraitTone,XPskSinTone } from "./tbskclasses/TbskTone";
 import { TbskSocket} from "./misc/TbskSocket";
 import { CRC16 } from "./utils/crc16";
+import { BrokenTextStreamDecoder } from "./utils/BrokenTextStreamDecoder";
+import AX25 from "./misc/AX25";
 
 
 // @ts-check
@@ -32,6 +34,17 @@ export class TBSKmodemJS
 {    
     /** @type {TBSKmodemJS} */
     static _instance=undefined;
+    static utils={
+        /** @class {@link CRC16} */
+        CRC16:CRC16,
+        /** @class {@link BrokenTextStreamDecoder} */
+        BrokenTextStreamDecoder:BrokenTextStreamDecoder,
+        /** @class {@link AX25} */
+        AX25:AX25,
+    }
+
+
+
     /**
      * 必要なAPIが揃っているかを返す。
      * @returns {boolean}
@@ -87,10 +100,7 @@ export class TBSKmodemJS
             /** @class {@link AudioPlayer} */
             AudioPlayer:AudioPlayer,
         };
-        this.utils={
-            /** @class {@link CRC16} */
-            CRC16:CRC16
-        }
+
         this.misc={
             /** @class {@link TbskSocket} */
             TbskSocket:class extends TbskSocket{

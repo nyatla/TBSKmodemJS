@@ -38,6 +38,10 @@ export class BrokenTextStreamDecoder{
         this._len -= size;
         return;
     }
+    get pending(){
+        return this._a.slice(0,this._len);
+
+    }
     /**
     * 現在のキャッシュの文字として確定可能なバイト数を返す。
     * @param {Number} d 
