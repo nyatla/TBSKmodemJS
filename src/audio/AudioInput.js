@@ -141,6 +141,13 @@ export class AudioInput
             case "data":
                 let v=event.data.value;
                 for(let i=0;i<v.length;i++){
+                    const w=v[i];
+                    //ついでに値範囲強制
+                    if(w<-1){
+                        v[i]=-1;
+                    }else if(w>1){
+                        v[i]=1;
+                    }
                     _t._rms.update(v[i]);
                 }                                
                 if (_t._onsound) {

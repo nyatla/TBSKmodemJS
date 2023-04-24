@@ -25,7 +25,7 @@ import AX25 from "./misc/AX25";
  */
 
 /** @type {string}*/
-const VERSION="TBSKmodemJS/0.4.2";
+const VERSION="TBSKmodemJS/0.4.3";
 
 /**
  * 

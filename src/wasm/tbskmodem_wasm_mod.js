@@ -416,6 +416,12 @@ var tempDouble;
 
 var tempI64;
 
+var ASM_CONSTS = {
+ 22952: $0 => {
+  console.log("Range err:" + $0);
+ }
+};
+
 function callRuntimeCallbacks(callbacks) {
  while (callbacks.length > 0) {
   callbacks.shift()(Module);
@@ -428,6 +434,29 @@ function ___assert_fail(condition, filename, line, func) {
 
 function _abort() {
  abort("");
+}
+
+var readEmAsmArgsArray = [];
+
+function readEmAsmArgs(sigPtr, buf) {
+ readEmAsmArgsArray.length = 0;
+ var ch;
+ buf >>= 2;
+ while (ch = HEAPU8[sigPtr++]) {
+  buf += ch != 105 & buf;
+  readEmAsmArgsArray.push(ch == 105 ? HEAP32[buf] : HEAPF64[buf++ >> 1]);
+  ++buf;
+ }
+ return readEmAsmArgsArray;
+}
+
+function runEmAsmFunction(code, sigPtr, argbuf) {
+ var args = readEmAsmArgs(sigPtr, argbuf);
+ return ASM_CONSTS[code].apply(null, args);
+}
+
+function _emscripten_asm_const_int(code, sigPtr, argbuf) {
+ return runEmAsmFunction(code, sigPtr, argbuf);
 }
 
 function _emscripten_memcpy_big(dest, src, num) {
@@ -447,6 +476,7 @@ function _emscripten_resize_heap(requestedSize) {
 var asmLibraryArg = {
  "__assert_fail": ___assert_fail,
  "abort": _abort,
+ "emscripten_asm_const_int": _emscripten_asm_const_int,
  "emscripten_memcpy_big": _emscripten_memcpy_big,
  "emscripten_resize_heap": _emscripten_resize_heap
 };
@@ -607,6 +637,10 @@ var _wasm_tbskmodem_PcmData_DataAsFloat = Module["_wasm_tbskmodem_PcmData_DataAs
 
 var _wasm_tbskmodem_PcmData_Dump = Module["_wasm_tbskmodem_PcmData_Dump"] = function() {
  return (_wasm_tbskmodem_PcmData_Dump = Module["_wasm_tbskmodem_PcmData_Dump"] = Module["asm"]["wasm_tbskmodem_PcmData_Dump"]).apply(null, arguments);
+};
+
+var _wasm_test_double = Module["_wasm_test_double"] = function() {
+ return (_wasm_test_double = Module["_wasm_test_double"] = Module["asm"]["wasm_test_double"]).apply(null, arguments);
 };
 
 var ___errno_location = Module["___errno_location"] = function() {
