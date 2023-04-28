@@ -1,6 +1,6 @@
 
 var Module = (() => {
-  var _scriptDir = typeof document !== 'undefined' && document.currentScript ? document.currentScript.src : undefined;
+  var _scriptDir = import.meta.url;
   
   return (
 function(Module) {
@@ -315,10 +315,13 @@ function isDataURI(filename) {
 
 var wasmBinaryFile;
 
-wasmBinaryFile = "tbskmodem_wasm_mod.wasm";
-
-if (!isDataURI(wasmBinaryFile)) {
- wasmBinaryFile = locateFile(wasmBinaryFile);
+if (Module["locateFile"]) {
+ wasmBinaryFile = "tbskmodem_wasm_mod.wasm";
+ if (!isDataURI(wasmBinaryFile)) {
+  wasmBinaryFile = locateFile(wasmBinaryFile);
+ }
+} else {
+ wasmBinaryFile = new URL("tbskmodem_wasm_mod.wasm", import.meta.url).href;
 }
 
 function getBinary(file) {
@@ -724,9 +727,4 @@ run();
 }
 );
 })();
-if (typeof exports === 'object' && typeof module === 'object')
-  module.exports = Module;
-else if (typeof define === 'function' && define['amd'])
-  define([], function() { return Module; });
-else if (typeof exports === 'object')
-  exports["Module"] = Module;
+export default Module;

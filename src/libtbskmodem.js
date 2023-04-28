@@ -77,9 +77,11 @@ export class TBSKmodemJS
             console.log("TBSKmodemJS is already created.");
             return TBSKmodemJS._instance;
         }
-        const mod = require("./wasm/tbskmodem_wasm_mod.js");
-        const b = Buffer.from(tbskmodemjsWASM.split(",")[1], "base64");
-        let wasm = await mod({ wasmBinary: b });
+
+        const wasmModule = await import('./wasm/tbskmodem_wasm_mod.js');
+        console.log(tbskmodemjsWASM.split(','));
+        const b = Buffer.from(tbskmodemjsWASM.split(',')[1], 'base64');
+        const wasm = await wasmModule.default({ wasmBinary: b });
         TBSKmodemJS._instance=new TBSKmodemJS(wasm);
         return TBSKmodemJS._instance;
     }
